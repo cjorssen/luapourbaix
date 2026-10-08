@@ -1,0 +1,64 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+% Selection is transactional, scoped and usable by ordinary deferred addplot.
+\begingroup
+\pgfplotsset{pourbaix/declare={
+ name=SelectedCu,element=Cu,temperature=298.15,
+ concentration=1e-2,species={Cu(s),Cu^+,Cu^2+},
+ boundary convention=equal concentrations,thermodynamic database=none,
+ constants={standard potential={oxidized=Cu^2+,reduced=Cu^+,value=.159},
+ standard potential={oxidized=Cu^+,reduced=Cu(s),value=.520}}},
+ pourbaix/check=SelectedCu,pourbaix/calculate=SelectedCu,
+ pourbaix/pH min=0,pourbaix/pH max=14,pourbaix/finalize=SelectedCu}%
+\pgfplotsgetpourbaix{SelectedCu}\selectedhandle
+\pgfkeys{/pgfplots/pourbaix/data/\selectedhandle/selection/.cd,
+ segment count/.get=\segmentcount,event count/.get=\eventcount,
+ segment 1/expression/.get=\selectedexpression,
+ segment 1/pH min/.get=\selectedmin,segment 1/pH max/.get=\selectedmax,
+ event 1/species 2 coefficient/.get=\selfcoefficient}%
+\directlua{
+ assert(token.get_macro("segmentcount")=="1")
+ assert(token.get_macro("eventcount")=="1")
+ assert(token.get_macro("selfcoefficient")=="-2")
+}%
+\setbox0=\hbox{\pgfplotsset{pourbaix/finalize=SelectedCu}}%
+\ifdim\wd0=0pt\else\errmessage{Selection export produced material}\fi
+\par\tikzpicture
+\axis[pourbaix/axis,width=7cm,height=5cm]
+ \addplot[domain=\selectedmin:\selectedmax,samples=2] {\selectedexpression};
+\endaxis
+\endtikzpicture\par
+\begingroup
+ \pgfplotsset{pourbaix/pH step=.2,pourbaix/finalize=SelectedCu}%
+ \ifx\pgfplotslastpourbaix\selectedhandle\errmessage{Selection did not capture new options}\fi
+\endgroup
+\pgfplotsgetpourbaix{SelectedCu}\restoredselection
+\ifx\restoredselection\selectedhandle\else\errmessage{Selection alias escaped scope}\fi
+\let\lastselection\pgfplotslastpourbaix
+\directlua{
+ luapourbaixSelectionTest={original=tex.error,count=0}
+ tex.error=function(message)
+  assert(message:find("pH step must be positive",1,true))
+  luapourbaixSelectionTest.count=luapourbaixSelectionTest.count+1
+ end
+}%
+\pgfplotsset{pourbaix/pH step=0,pourbaix/finalize=SelectedCu}%
+\directlua{
+ tex.error=luapourbaixSelectionTest.original
+ assert(luapourbaixSelectionTest.count==1)
+ luapourbaixSelectionTest=nil
+}%
+\ifx\pgfplotslastpourbaix\lastselection\else\errmessage{Failed selection changed last handle}\fi
+\pgfplotsset{pourbaix/pH step=.1,pourbaix/finalize handle/.expanded=\selectedhandle}%
+\ifx\pgfplotslastpourbaix\selectedhandle\else\errmessage{Selection not idempotent}\fi
+\endgroup
+% Removed action names must fail, not silently run or alias finalization.
+\begingroup
+\def\RemovedActionErrors{0}
+\pgfkeys{/errors/unknown key/.code 2 args={\xdef\RemovedActionErrors{\the\numexpr\RemovedActionErrors+1\relax}}}
+\pgfplotsset{pourbaix/select=SelectedCu,pourbaix/select handle=1}
+\ifnum\RemovedActionErrors=2\else\errmessage{Removed selection keys were accepted}\fi
+\endgroup

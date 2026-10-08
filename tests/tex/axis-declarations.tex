@@ -1,0 +1,16 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+% A declaration between ordinary plots must leave PGFPlots' survey intact.
+\addplot coordinates {(0,0) (14,0)};
+\pgfplotsset{pourbaix/declare={
+  test iron,name=Fe1E-2,concentration=2e-2
+}}
+\pgfplotsgetpourbaix{Fe1E-2}\axisiron
+\pgfplotsset{execute at end axis={\directlua{
+  assert(luapourbaix.get(token.get_macro("savediron")).concentration == 0.01)
+  assert(luapourbaix.get(token.get_macro("axisiron")).concentration == 0.02)
+}}}
+\addplot coordinates {(0,0.5) (14,0.5)};

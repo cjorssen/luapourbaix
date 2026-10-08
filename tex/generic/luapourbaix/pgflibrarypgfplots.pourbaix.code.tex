@@ -1,0 +1,1078 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+% Generic PGFPlots library. Loaded after PGFPlots by its library loader.
+\ifdefined\directlua
+\else
+  \errmessage{luapourbaix requires a LuaTeX-compatible engine}%
+  \expandafter\endinput
+\fi
+
+% Public key-family shortcut; no additional group or implicit action.
+\def\pgfpourbaixset#1{\pgfkeys{/pgfplots/pourbaix/.cd,#1}}%
+
+% Tableau tab10 RGB values from Matplotlib v3.10.7, _color_data.py.
+% Use PGF generic RGB definitions, including plain TeX and ConTeXt.
+\usetikzlibrary{patterns}
+\pgfutil@definecolor{luapourbaixtab1}{rgb}{0.121568627451,0.466666666667,0.705882352941}
+\pgfutil@definecolor{luapourbaixtab2}{rgb}{1,0.498039215686,0.0549019607843}
+\pgfutil@definecolor{luapourbaixtab3}{rgb}{0.172549019608,0.627450980392,0.172549019608}
+\pgfutil@definecolor{luapourbaixtab4}{rgb}{0.839215686275,0.152941176471,0.156862745098}
+\pgfutil@definecolor{luapourbaixtab5}{rgb}{0.580392156863,0.403921568627,0.741176470588}
+\pgfutil@definecolor{luapourbaixtab6}{rgb}{0.549019607843,0.337254901961,0.294117647059}
+\pgfutil@definecolor{luapourbaixtab7}{rgb}{0.890196078431,0.466666666667,0.760784313725}
+\pgfutil@definecolor{luapourbaixtab8}{rgb}{0.498039215686,0.498039215686,0.498039215686}
+\pgfutil@definecolor{luapourbaixtab9}{rgb}{0.737254901961,0.741176470588,0.133333333333}
+\pgfutil@definecolor{luapourbaixtab10}{rgb}{0.0901960784314,0.745098039216,0.811764705882}
+
+% Only constant source crosses this bootstrap boundary. No user interpolation.
+% ConTeXt uses its resolver; plain and LaTeX use Kpathsea.
+\directlua{
+  local name = "luapourbaix-tex.lua"
+  local path
+  if resolvers and resolvers.findfile then
+    path = resolvers.findfile(name)
+  end
+  if not path or path == "" then
+    if kpse and kpse.find_file then
+      path = kpse.find_file(name, "tex")
+    end
+  end
+  assert(path and not (path == ""), "luapourbaix: cannot locate bridge")
+  luapourbaix = luapourbaix or dofile(path)
+}
+
+% Each declaration is a transaction. Scratch macros are local; the final
+% handle and optional alias are assigned in the caller's group only on success.
+% MkIV's active pipe expands as a text discretionary. During declaration keys
+% only, expand that token to an ordinary pipe before PGF expands path names.
+% Both character codes and the active character's meaning are restored by groups.
+\begingroup
+\catcode`\|=12
+\gdef\luapourbaixliteralpipe{|}%
+\catcode`\~=13
+\lccode`\~=`\|
+\lowercase{\endgroup
+  \def\luapourbaixnormalizepipe{\let~\luapourbaixliteralpipe}}%
+\def\luapourbaixdeclare#1{\luapourbaixdeclaration{0}{#1}}%
+\def\luapourbaixdeclaration#1#2{%
+  \begingroup
+  \def\luapourbaixbuildmode{#1}%
+  % Axis option filtering postpones dynamic addressed keys as unknown keys.
+  % A declaration must consume its complete nested records immediately.
+  \pgfkeysinterruptkeyfilter
+  \luapourbaixnormalizepipe
+  \def\luapourbaixactivitymodel{}%
+  \def\luapourbaixname{}%
+  \def\luapourbaixelement{}%
+  \def\luapourbaixspecies{}%
+  \def\luapourbaixconcentration{}%
+  \def\luapourbaixtemperature{}%
+  \def\luapourbaixnernstfactor{auto}%
+  \def\luapourbaixtolerance{1e-8}%
+  \def\luapourbaixdatabase{aqueous-298}%
+  \def\luapourbaixconvention{}%
+  \def\luapourbaixconstants{}%
+  \def\luapourbaixhasconstants{0}%
+  \def\luapourbaixverticalprefix{}%
+  \def\luapourbaixredoxprefix{}%
+  \def\luapourbaixboundarysuffix{-temp}%
+  \directlua{luapourbaix.begin_declaration()}%
+  % PGF may report an error and continue in nonstop mode. Such a declaration
+  % must not commit even if all remaining required fields happen to be valid.
+  \ifdefined\luapourbaixerrorguard
+  \else
+    \def\luapourbaixerrorguard{1}%
+    \let\luapourbaixsavedpgferror\pgferror
+    \def\pgferror##1{%
+      \directlua{luapourbaix.invalidate()}%
+      \luapourbaixsavedpgferror{##1}%
+    }%
+  \fi
+  \pgfkeys{%
+    /errors/value required/.code 2 args={%
+      \pgferror{luapourbaix: key '##1' requires a value}},%
+    /errors/unknown key/.code 2 args={%
+      \pgferror{luapourbaix: unknown key '##1'}},%
+    /errors/value forbidden/.code 2 args={%
+      \pgferror{luapourbaix: key '##1' forbids a value}},%
+    /errors/unknown choice value/.code 2 args={%
+      \pgferror{luapourbaix: invalid choice '##2' for key '##1'}},%
+  }%
+  \pgfqkeys{/pgfplots/pourbaix/diagram}{#2}%
+  \expandafter\luapourbaixparseconstants\expandafter{\luapourbaixconstants}%
+  \endpgfkeysinterruptkeyfilter
+  \directlua{luapourbaix.finish_declaration()}%
+  \ifx\luapourbaixresult\pgfutil@empty
+    \endgroup
+  \else
+    \edef\luapourbaixnext{%
+      \endgroup
+      \def\noexpand\pgfplotslastpourbaix{\luapourbaixresult}%
+      \ifx\luapourbaixname\pgfutil@empty
+      \else
+        \noexpand\expandafter\def\noexpand\csname
+          luapourbaix@named@\luapourbaixname\noexpand\endcsname{\luapourbaixresult}%
+      \fi
+    }%
+    \luapourbaixnext
+    \ifnum#1=1 \directlua{luapourbaix.export_data()}\fi
+  \fi
+}
+
+% Addressed keys seed identity fields; nested records cannot redirect them.
+\def\luapourbaixsetidentity#1#2{%
+  \ifx\luapourbaixidentitylock\pgfutil@empty\def#1{#2}%
+  \else\directlua{luapourbaix.invalidate()}%
+    \pgferror{luapourbaix: identity is already specified in the key path}%
+  \fi
+}
+\def\luapourbaixaddressdispatch#1#2{%
+  \def\luapourbaixmissingvalue{\pgfkeysnovalue}%
+  \ifx\pgfkeyscurrentvalue\luapourbaixmissingvalue
+    \directlua{luapourbaix.invalidate()}%
+    \pgferror{luapourbaix: addressed declaration keys require an option list}%
+  \else
+    \expandafter#1\expandafter{\pgfkeyscurrentname}{#2}%
+  \fi
+}
+\def\luapourbaixpairaddress#1#2#3{%
+  \begingroup
+  \def\luapourbaixpairaddressvalue{#2}%
+  \directlua{luapourbaix.split_pair_address()}%
+  \ifnum\luapourbaixpairvalid=1
+    \edef\luapourbaixnext{\noexpand#1
+      {\pgfutil@unexpanded\expandafter{\luapourbaixpairfirst}}%
+      {\pgfutil@unexpanded\expandafter{\luapourbaixpairsecond}}%
+      {\pgfutil@unexpanded{#3}}}%
+    \luapourbaixnext
+  \fi
+  \endgroup
+}
+\def\luapourbaixpotentialaddress#1#2{\luapourbaixpairaddress\luapourbaixpotentialfor{#1}{#2}}
+\def\luapourbaixequilibriumaddress#1#2{\luapourbaixpairaddress\luapourbaixequilibriumfor{#1}{#2}}
+\def\luapourbaixparseconstants#1{%
+  \pgfqkeys{/pgfplots/pourbaix/constants}{#1}%
+}
+\def\luapourbaixpotential#1{\luapourbaixpotentialfor{}{}{#1}}%
+\def\luapourbaixpotentialfor#1#2#3{%
+  \begingroup
+  \def\luapourbaixidentitylock{#1}%
+  \def\luapourbaixoxidized{#1}%
+  \def\luapourbaixreduced{#2}%
+  \def\luapourbaixvalue{}%
+  \pgfqkeys{/pgfplots/pourbaix/standard potential}{#3}%
+  \directlua{luapourbaix.add_potential()}%
+  \endgroup
+}
+\def\luapourbaixsolubility#1{\luapourbaixsolubilityfor{}{#1}}%
+\def\luapourbaixsolubilityfor#1#2{%
+  \begingroup
+  \def\luapourbaixidentitylock{#1}%
+  \def\luapourbaixsolid{#1}%
+  \def\luapourbaixvalue{}%
+  \def\luapourbaixlogvalue{}%
+  \def\luapourbaixreaction{}%
+  \def\luapourbaixhasreaction{0}%
+  \pgfqkeys{/pgfplots/pourbaix/solubility product}{#2}%
+  \directlua{luapourbaix.add_solubility()}%
+  \endgroup
+}
+\def\luapourbaixequilibrium#1{\luapourbaixequilibriumfor{}{}{#1}}%
+\def\luapourbaixequilibriumfor#1#2#3{%
+  \begingroup
+  \def\luapourbaixidentitylock{#1}%
+  \def\luapourbaixfirst{#1}%
+  \def\luapourbaixsecond{#2}%
+  \def\luapourbaixvalue{}%
+  \def\luapourbaixlogvalue{}%
+  \def\luapourbaixreaction{}%
+  \def\luapourbaixhasreaction{0}%
+  \pgfqkeys{/pgfplots/pourbaix/equilibrium constant}{#3}%
+  \directlua{luapourbaix.add_equilibrium()}%
+  \endgroup
+}
+\def\luapourbaixwater#1{%
+  \begingroup
+  \def\luapourbaixvalue{}%
+  \def\luapourbaixlogvalue{}%
+  \pgfqkeys{/pgfplots/pourbaix/water ion product}{#1}%
+  \directlua{luapourbaix.add_water()}%
+  \endgroup
+}
+\def\luapourbaixunknown{%
+  \directlua{luapourbaix.invalidate()}%
+  \pgferror{luapourbaix: unknown declaration key '\pgfkeyscurrentkey'}%
+}
+
+\def\luapourbaixspeciesdata#1{\luapourbaixspeciesdatafor{}{#1}}%
+\def\luapourbaixspeciesdatafor#1#2{%
+  \begingroup
+  \def\luapourbaixidentitylock{#1}%
+  \def\luapourbaixdataspecies{#1}%
+  \def\luapourbaixoxidation{}%
+  \def\luapourbaixacidityrank{}%
+  \def\luapourbaixphase{}%
+  \pgfqkeys{/pgfplots/pourbaix/species data}{#2}%
+  \directlua{luapourbaix.add_species_data()}%
+  \endgroup
+}
+\def\luapourbaixaddboundaryname#1{%
+  \begingroup
+  \def\luapourbaixfirst{}%
+  \def\luapourbaixsecond{}%
+  \def\luapourbaixboundaryname{}%
+  \pgfqkeys{/pgfplots/pourbaix/boundary name}{#1}%
+  \directlua{luapourbaix.add_boundary_name()}%
+  \endgroup
+}
+
+\def\pgfplotslastpourbaix{}%
+\def\pgfplotsgetpourbaix#1#2{%
+  \begingroup
+  \def\luapourbaixlookupname{#1}%
+  \directlua{luapourbaix.resolve_name()}%
+  \ifx\luapourbaixresult\pgfutil@empty
+    \endgroup
+  \else
+    \edef\luapourbaixnext{\endgroup\def\noexpand#2{\luapourbaixresult}}%
+    \luapourbaixnext
+  \fi
+}
+
+% Checking or calculation creates a new immutable snapshot. A name lookup updates that alias;
+% checking a captured handle changes only the last handle, never a named alias.
+\def\luapourbaixcheck#1#2#3{%
+  \begingroup
+  \def\luapourbaixname{}%
+  \def\luapourbaixoperation{#3}%
+  \def\luapourbaixcheckbyname{#1}%
+  \def\luapourbaixcheckhandle{#2}%
+  \ifnum#1=1
+    \def\luapourbaixlookupname{#2}%
+    \directlua{luapourbaix.resolve_name()}%
+    \let\luapourbaixcheckhandle\luapourbaixresult
+  \fi
+  \ifx\luapourbaixcheckhandle\pgfutil@empty
+    \endgroup
+  \else
+    \directlua{luapourbaix.check_diagram()}%
+    \ifx\luapourbaixresult\pgfutil@empty
+      \endgroup
+    \else
+      \edef\luapourbaixnext{%
+        \endgroup
+        \def\noexpand\pgfplotslastpourbaix{\luapourbaixresult}%
+        \ifx\luapourbaixname\pgfutil@empty\else
+          \noexpand\expandafter\def\noexpand\csname
+          luapourbaix@named@\luapourbaixname\noexpand\endcsname{\luapourbaixresult}%
+        \fi
+      }%
+      \luapourbaixnext
+      \directlua{luapourbaix.export_data()}%
+    \fi
+  \fi
+}
+
+\pgfplotsset{
+  pourbaix/pH min/.store in=\luapourbaixphmin,
+  pourbaix/pH min/.value required,
+  pourbaix/pH max/.store in=\luapourbaixphmax,
+  pourbaix/pH max/.value required,
+  pourbaix/pH step/.store in=\luapourbaixphstep,
+  pourbaix/pH step/.default=0.1,
+  pourbaix/pH step=0.1,
+  pourbaix/finalize/.code={\luapourbaixcheck{1}{#1}{select}},
+  pourbaix/finalize/.value required,
+  pourbaix/finalize handle/.code={\luapourbaixcheck{0}{#1}{select}},
+  pourbaix/finalize handle/.value required,
+  pourbaix/check/.code={\luapourbaixcheck{1}{#1}{check}},
+  pourbaix/check/.value required,
+  pourbaix/check handle/.code={\luapourbaixcheck{0}{#1}{check}},
+  pourbaix/check handle/.value required,
+  pourbaix/calculate/.code={\luapourbaixcheck{1}{#1}{calculate}},
+  pourbaix/calculate/.value required,
+  pourbaix/calculate handle/.code={\luapourbaixcheck{0}{#1}{calculate}},
+  pourbaix/calculate handle/.value required,
+  pourbaix/axis/.style={
+    axis on top,
+    xlabel={pH},
+    ylabel={$E$/V},
+  },
+  pourbaix/build/.code={\luapourbaixdeclaration{1}{#1}},
+  pourbaix/build/.value required,
+  pourbaix/declare/.code={\luapourbaixdeclare{#1}},
+  pourbaix/declare/.value required,
+  pourbaix/diagram/.cd,
+  .unknown/.code={\luapourbaixunknown},
+  name/.store in=\luapourbaixname,
+  name/.value required,
+  activity model/.store in=\luapourbaixactivitymodel,
+  activity model/.value required,
+  element/.store in=\luapourbaixelement,
+  element/.value required,
+  species/.store in=\luapourbaixspecies,
+  species/.value required,
+  concentration/.store in=\luapourbaixconcentration,
+  concentration/.value required,
+  temperature/.store in=\luapourbaixtemperature,
+  temperature/.value required,
+  nernst factor/.store in=\luapourbaixnernstfactor,
+  nernst factor/.value required,
+  thermodynamic tolerance/.store in=\luapourbaixtolerance,
+  thermodynamic tolerance/.value required,
+  thermodynamic database/.store in=\luapourbaixdatabase,
+  thermodynamic database/.value required,
+  species/.unknown/.code={\luapourbaixaddressdispatch\luapourbaixspeciesdatafor{#1}},
+  species data/.code={\luapourbaixspeciesdata{#1}},
+  species data/.value required,
+  boundary name/.code={\luapourbaixaddboundaryname{#1}},
+  boundary name/.value required,
+  boundary labels/.code={\pgfqkeys{/pgfplots/pourbaix/boundary labels}{#1}},
+  boundary labels/.value required,
+  boundary convention/.store in=\luapourbaixconvention,
+  boundary convention/.value required,
+  constants/.code={\def\luapourbaixconstants{#1}\def\luapourbaixhasconstants{1}},
+  constants/.value required,
+  /pgfplots/pourbaix/constants/.cd,
+  .unknown/.code={\luapourbaixunknown},
+  standard potential/.unknown/.code={\luapourbaixaddressdispatch\luapourbaixpotentialaddress{#1}},
+  solubility product/.unknown/.code={\luapourbaixaddressdispatch\luapourbaixsolubilityfor{#1}},
+  equilibrium constant/.unknown/.code={\luapourbaixaddressdispatch\luapourbaixequilibriumaddress{#1}},
+  standard potential/.code={\luapourbaixpotential{#1}},
+  standard potential/.value required,
+  solubility product/.code={\luapourbaixsolubility{#1}},
+  solubility product/.value required,
+  equilibrium constant/.code={\luapourbaixequilibrium{#1}},
+  equilibrium constant/.value required,
+  water ion product/.code={\luapourbaixwater{#1}},
+  water ion product/.value required,
+  /pgfplots/pourbaix/equilibrium constant/.cd,
+  reaction/.code={\def\luapourbaixreaction{#1}\def\luapourbaixhasreaction{1}},
+  reaction/.value required,
+  .unknown/.code={\luapourbaixunknown},
+  first/.code={\luapourbaixsetidentity\luapourbaixfirst{#1}},
+  first/.value required,
+  second/.code={\luapourbaixsetidentity\luapourbaixsecond{#1}},
+  second/.value required,
+  value/.store in=\luapourbaixvalue,
+  value/.value required,
+  log value/.store in=\luapourbaixlogvalue,
+  log value/.value required,
+  /pgfplots/pourbaix/water ion product/.cd,
+  .unknown/.code={\luapourbaixunknown},
+  value/.store in=\luapourbaixvalue,
+  value/.value required,
+  log value/.store in=\luapourbaixlogvalue,
+  log value/.value required,
+  /pgfplots/pourbaix/standard potential/.cd,
+  .unknown/.code={\luapourbaixunknown},
+  oxidized/.code={\luapourbaixsetidentity\luapourbaixoxidized{#1}},
+  oxidized/.value required,
+  reduced/.code={\luapourbaixsetidentity\luapourbaixreduced{#1}},
+  reduced/.value required,
+  value/.store in=\luapourbaixvalue,
+  value/.value required,
+  /pgfplots/pourbaix/solubility product/.cd,
+  reaction/.code={\def\luapourbaixreaction{#1}\def\luapourbaixhasreaction{1}},
+  reaction/.value required,
+  .unknown/.code={\luapourbaixunknown},
+  solid/.code={\luapourbaixsetidentity\luapourbaixsolid{#1}},
+  solid/.value required,
+  value/.store in=\luapourbaixvalue,
+  value/.value required,
+  log value/.store in=\luapourbaixlogvalue,
+  log value/.value required,
+  /pgfplots/pourbaix/species data/.cd,
+  .unknown/.code={\luapourbaixunknown},
+  species/.code={\luapourbaixsetidentity\luapourbaixdataspecies{#1}},
+  species/.value required,
+  oxidation number/.store in=\luapourbaixoxidation,
+  oxidation number/.value required,
+  acidity rank/.store in=\luapourbaixacidityrank,
+  acidity rank/.value required,
+  thermodynamic phase/.store in=\luapourbaixphase,
+  thermodynamic phase/.value required,
+  /pgfplots/pourbaix/boundary name/.cd,
+  .unknown/.code={\luapourbaixunknown},
+  first/.store in=\luapourbaixfirst,
+  first/.value required,
+  second/.store in=\luapourbaixsecond,
+  second/.value required,
+  name/.store in=\luapourbaixboundaryname,
+  name/.value required,
+  /pgfplots/pourbaix/boundary labels/.cd,
+  .unknown/.code={\luapourbaixunknown},
+  vertical prefix/.store in=\luapourbaixverticalprefix,
+  vertical prefix/.value required,
+  redox prefix/.store in=\luapourbaixredoxprefix,
+  redox prefix/.value required,
+  suffix/.store in=\luapourbaixboundarysuffix,
+  suffix/.value required,
+}
+% These are ordinary TikZ pics, usable without a PGFPlots axis. The group
+% created by TikZ owns the temporary macros and generated drawing commands.
+\def\luapourbaixdrawclassification#1#2{%
+  \def\luapourbaixpicturekind{#1}%
+  \def\luapourbaixlookupname{#2}%
+  \pgfkeysgetvalue{/tikz/pourbaix/handle}\luapourbaixdrawhandle
+  \pgfkeysgetvalue{/tikz/pourbaix/acidity direction/value}\luapourbaixaciditydirection
+  \pgfkeysgetvalue{/tikz/pourbaix/oxidation number format/value}\luapourbaixoxidationnumberformat
+  \directlua{luapourbaix.draw_classification()}%
+}
+\tikzset{
+  pics/pourbaix oxidation/.style={code={\luapourbaixdrawclassification{oxidation}{#1}}},
+  pics/pourbaix oxidation/.default={},
+  pics/pourbaix acidity/.style={code={\luapourbaixdrawclassification{acidity}{#1}}},
+  pics/pourbaix acidity/.default={},
+  pourbaix/handle/.initial={},
+  pourbaix/column sep/.initial=2.5cm,
+  pourbaix/row sep/.initial=0.9cm,
+  pourbaix/species/.style={draw,rounded corners=2pt,inner sep=4pt},
+  pourbaix/state/.style={inner sep=2pt},
+  pourbaix/oxidation number format/.is choice,
+  pourbaix/oxidation number format/arabic/.style={
+    /tikz/pourbaix/oxidation number format/value=arabic},
+  pourbaix/oxidation number format/roman/.style={
+    /tikz/pourbaix/oxidation number format/value=roman},
+  pourbaix/oxidation number format/value/.initial=arabic,
+  pourbaix/axis/.style={semithick},
+  pourbaix/caption/.style={inner sep=3pt},
+  pourbaix/oxidation caption/.initial={increasing oxidation number},
+  pourbaix/acidity caption/.initial={decreasing acidity},
+  pourbaix/acidity direction/.is choice,
+  pourbaix/acidity direction/decreasing/.style={
+    /tikz/pourbaix/acidity direction/value=decreasing,
+    /tikz/pourbaix/acidity caption=decreasing acidity},
+  pourbaix/acidity direction/increasing/.style={
+    /tikz/pourbaix/acidity direction/value=increasing,
+    /tikz/pourbaix/acidity caption=increasing acidity},
+  pourbaix/acidity direction/value/.initial=decreasing,
+}
+% Public plotting entry point. All output uses ordinary addplot survey commands.
+% Axis wrapper: parse in the chemical family and use PGFKeys' standard search
+% fallback for ordinary axis/TikZ options. The underlying axis owns the group;
+% both the search handler and scientific aliases therefore remain axis-local.
+% Forward tokens without expansion; nested values never become Lua source here.
+\def\luapourbaixenvironment{%
+  \pgfutil@ifnextchar[{\luapourbaixenvironmentoptions}{\luapourbaixenvironmentoptions[]}}
+\def\luapourbaixenvironmentoptions[#1]{%
+  \axis[pourbaix/axis,
+    /pgfplots/pourbaix/.search also={/pgfplots},
+    /pgfplots/pourbaix/.cd,#1,/pgfplots/.cd]%
+}
+\def\luapourbaixendenvironment{\endaxis}
+\tikzaddtikzonlycommandshortcutlet\pourbaix\luapourbaixenvironment
+\tikzaddtikzonlycommandshortcutlet\endpourbaix\luapourbaixendenvironment
+\tikzaddtikzonlycommandshortcutlet\startpourbaix\luapourbaixenvironment
+\tikzaddtikzonlycommandshortcutlet\stoppourbaix\luapourbaixendenvironment
+
+% A standalone final-only view; scientific preparation remains explicit.
+\def\pgfplotspourbaix{\pgfutil@ifnextchar[{\luapourbaixfinalpicture}{\luapourbaixfinalpicture[]}}
+\def\luapourbaixfinalpicture[#1]#2{%
+  \tikzpicture\axis[pourbaix/axis,#1]
+    \pgfplotsaddpourbaix[final diagram]{#2};%
+  \endaxis\endtikzpicture
+}
+\def\luapourbaixdomaincount{0}%
+\def\luapourbaixcustomdomain#1{\luapourbaixcustomdomainfor{}{#1}}%
+% Capture the dynamic path component before nested keys change currentname.
+% Species text is validated by the existing bridge, never executed as Lua.
+\def\luapourbaixcustomdomainfor#1#2{%
+  \def\luapourbaixpathspecies{#1}%
+  \def\luapourbaixcustomspecies{#1}\def\luapourbaixcustomat{}%
+  \def\luapourbaixcustomstyle{}\def\luapourbaixcustomnodestyle{}%
+  \def\luapourbaixcustomtext{}\def\luapourbaixcustomhastext{0}%
+  \pgfqkeys{/pgfplots/pourbaix/domain}{#2}%
+  \edef\luapourbaixdomaincount{\the\numexpr\luapourbaixdomaincount+1\relax}%
+  \expandafter\let\csname luapourbaixdomainspecies\luapourbaixdomaincount\endcsname\luapourbaixcustomspecies
+  \expandafter\let\csname luapourbaixdomainat\luapourbaixdomaincount\endcsname\luapourbaixcustomat
+  \expandafter\let\csname luapourbaixdomainstyle\luapourbaixdomaincount\endcsname\luapourbaixcustomstyle
+  \expandafter\let\csname luapourbaixdomainnodestyle\luapourbaixdomaincount\endcsname\luapourbaixcustomnodestyle
+  \expandafter\let\csname luapourbaixdomaintext\luapourbaixdomaincount\endcsname\luapourbaixcustomtext
+  \expandafter\let\csname luapourbaixdomainhastext\luapourbaixdomaincount\endcsname\luapourbaixcustomhastext
+}
+\def\luapourbaixboundarycount{0}%
+\def\luapourbaixcustomboundary#1#2{%
+  \def\luapourbaixcustomboundaryid{#1}%
+  \def\luapourbaixcustomstyle{}\def\luapourbaixcustomnodestyle{}%
+  \def\luapourbaixcustomtext{}\def\luapourbaixcustomhastext{0}%
+  \pgfqkeys{/pgfplots/pourbaix/boundary}{#2}%
+  \edef\luapourbaixboundarycount{\the\numexpr\luapourbaixboundarycount+1\relax}%
+  \expandafter\let\csname luapourbaixboundaryid\luapourbaixboundarycount\endcsname\luapourbaixcustomboundaryid
+  \expandafter\let\csname luapourbaixboundarystyle\luapourbaixboundarycount\endcsname\luapourbaixcustomstyle
+  \expandafter\let\csname luapourbaixboundarynodestyle\luapourbaixboundarycount\endcsname\luapourbaixcustomnodestyle
+  \expandafter\let\csname luapourbaixboundarytext\luapourbaixboundarycount\endcsname\luapourbaixcustomtext
+  \expandafter\let\csname luapourbaixboundaryhastext\luapourbaixboundarycount\endcsname\luapourbaixcustomhastext
+}
+\def\luapourbaixplotboundaryappearance#1{%
+  \def\luapourbaixboundaryoptions{}\def\luapourbaixboundarynodeoptions{}%
+  \def\luapourbaixboundaryhaslabel{0}%
+  \ifnum#1>0
+    \expandafter\let\expandafter\luapourbaixboundaryoptions\csname luapourbaixboundarystyle#1\endcsname
+    \expandafter\let\expandafter\luapourbaixboundarynodeoptions\csname luapourbaixboundarynodestyle#1\endcsname
+    \expandafter\let\expandafter\luapourbaixboundaryhaslabel\csname luapourbaixboundaryhastext#1\endcsname
+    \expandafter\let\expandafter\luapourbaixboundarytext\csname luapourbaixboundarytext#1\endcsname
+  \fi
+}
+% Check the terminator before submitting any plots; leave following input intact
+% on failure. The continuation is a token list, not expanded during lookahead.
+\def\luapourbaixrequiresemicolon#1{%
+  \pgfutil@ifnextchar;{\luapourbaixconsumesemicolon{#1}}{%
+    \pgferror{luapourbaix: missing semicolon after Pourbaix plot command}}%
+}
+\def\luapourbaixconsumesemicolon#1;{#1}%
+\def\pgfplotsaddpourbaix{\pgfutil@ifnextchar[{\luapourbaixplotcommand}{\luapourbaixplotcommand[]}}
+\def\luapourbaixplotcommand[#1]#2{%
+  \luapourbaixrequiresemicolon{\luapourbaixaddplot[#1]{#2}}%
+}
+% In nonstop mode, a key error must not fall through to a plausible plot.
+% Keep the caller's diagnostic handler and restore it with the plot group.
+\def\luapourbaixinvalidateplot{%
+  \def\luapourbaixplotvalid{0}%
+  % Choice diagnostics run inside a PGF group. Carry failure back to the
+  % plot's own group without a global flag that could escape the request.
+  \ifnum\currentgrouplevel>\luapourbaixplotgrouplevel\relax
+    \aftergroup\luapourbaixinvalidateplot
+  \fi
+}
+\def\luapourbaixguardploterrors{%
+  \edef\luapourbaixplotgrouplevel{\the\currentgrouplevel}%
+  \let\luapourbaixploterror\pgferror
+  \def\pgferror##1{\luapourbaixinvalidateplot\luapourbaixploterror{##1}}%
+  \pgfkeys{
+    /errors/value required/.code 2 args={%
+      \pgferror{luapourbaix: key '##1' requires a value}},
+    /errors/unknown key/.code 2 args={%
+      \pgferror{luapourbaix: unknown key '##1'}},
+    /errors/value forbidden/.code 2 args={%
+      \pgferror{luapourbaix: key '##1' forbids a value}},
+    /errors/unknown choice value/.code 2 args={%
+      \pgferror{luapourbaix: invalid choice '##2' for key '##1'}}}%
+}
+\def\luapourbaixaddplot[#1]#2{%
+  \pgfplotsifinaxis{%
+    \begingroup
+    \def\luapourbaixlookupname{#2}%
+    \def\luapourbaixplotvalid{1}%
+    \luapourbaixguardploterrors
+    \def\luapourbaixtickcommit{}%
+    \pgfplotsifaxisthreedim{\def\luapourbaixplotvalid{0}}{}%
+    % Read-only PGFPlots mode guards; no private plot list is accessed.
+    \ifpgfplots@xislinear\else\def\luapourbaixplotvalid{0}\fi
+    \ifpgfplots@yislinear\else\def\luapourbaixplotvalid{0}\fi
+    \ifnum\luapourbaixplotvalid=0
+      \pgferror{luapourbaix: plotting requires a two-dimensional linear axis}%
+    \fi
+    \pgfqkeys{/pgfplots/pourbaix/plot}{#1}%
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/extra x ticks}\luapourbaixplotxticks
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/extra y ticks}\luapourbaixplotyticks
+    \pgfkeysgetvalue{/pgfplots/xmin}\luapourbaixplotxmin
+    \pgfkeysgetvalue{/pgfplots/xmax}\luapourbaixplotxmax
+    \pgfkeysgetvalue{/pgfplots/ymin}\luapourbaixplotymin
+    \pgfkeysgetvalue{/pgfplots/ymax}\luapourbaixplotymax
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/handle}\luapourbaixplothandle
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain fills}\luapourbaixplotdomainfills
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain labels}\luapourbaixplotdomainlabels
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/boundaries}\luapourbaixplotboundaries
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/boundary labels}\luapourbaixplotboundarylabels
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/show removed boundaries}\luapourbaixplotremovedboundaries
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/show removed domains}\luapourbaixplotremoveddomains
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/show provisional boundaries}\luapourbaixplotprovisionalboundaries
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/provisional labels}\luapourbaixplotprovisionallabels
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain coloring}\luapourbaixplotcoloring
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain colors}\luapourbaixplotpalette
+    \def\luapourbaixpatternmode{patterns}%
+    \ifx\luapourbaixplotcoloring\luapourbaixpatternmode
+      \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain patterns}\luapourbaixplotpalette
+    \fi
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain label mode}\luapourbaixplotlabelmode
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain label placement}\luapourbaixplotlabelplacement
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/letter species list}\luapourbaixplotletterspecies
+    \ifnum\luapourbaixplotvalid=1
+      \directlua{luapourbaix.plot_diagram()}%
+    \fi
+    \expandafter\endgroup\luapourbaixtickcommit
+  }{\pgferror{luapourbaix: use \string\pgfplotsaddpourbaix\space inside an axis}}%
+}
+% Expand option-list values once into each plot/node token stream. User options
+% remain TeX tokens (never Lua strings or Lua source) during deferred rendering.
+\def\luapourbaixplotline#1#2#3#4{%
+  \pgfkeysgetvalue{/pgfplots/pourbaix/plot/#1 boundary style}\luapourbaixplotstyle
+  \pgfkeysgetvalue{/pgfplots/pourbaix/plot/boundary label style}\luapourbaixlabelstyle
+  \def\luapourbaixlabel{#3}%
+  \ifnum\luapourbaixboundaryhaslabel=1
+    \let\luapourbaixlabel\luapourbaixboundarytext
+  \fi
+  \edef\luapourbaixnext{%
+    \noexpand\addplot[forget plot,mark=none,
+      \pgfutil@unexpanded\expandafter{\luapourbaixplotstyle},
+      /pgfplots/pourbaix/boundary #3/.try,
+      \pgfutil@unexpanded\expandafter{\luapourbaixboundaryoptions}] coordinates {#2}%
+    \ifnum#4=1
+      node[pourbaix/boundary label,\pgfutil@unexpanded\expandafter{\luapourbaixlabelstyle},
+        /tikz/pourbaix/boundary #3 label/.try,
+        \pgfutil@unexpanded\expandafter{\luapourbaixboundarynodeoptions}]
+        {\pgfutil@unexpanded\expandafter{\luapourbaixlabel}}%
+    \fi;%
+  }%
+  \luapourbaixnext
+}
+\def\luapourbaixplotappearance#1#2{%
+  \def\luapourbaixcoloroptions{}%
+  \ifnum#1>0
+    \def\luapourbaixcolorindex{0}%
+    \pgfutil@for\luapourbaixcolor:=\luapourbaixplotpalette\do{%
+      \edef\luapourbaixcolorindex{\the\numexpr\luapourbaixcolorindex+1\relax}%
+      \ifnum\luapourbaixcolorindex=#1
+        \ifx\luapourbaixplotcoloring\luapourbaixpatternmode
+          \edef\luapourbaixcoloroptions{fill=none,pattern={\pgfutil@unexpanded\expandafter{\luapourbaixcolor}},pattern color=black}%
+        \else
+          \edef\luapourbaixcoloroptions{fill={\pgfutil@unexpanded\expandafter{\luapourbaixcolor}}}%
+        \fi
+      \fi}%
+  \fi
+  \def\luapourbaixdomainoptions{}%
+  \def\luapourbaixdomainnodeoptions{}%
+  \def\luapourbaixdomainhaslabel{0}%
+  \ifnum#2>0
+    \expandafter\let\expandafter\luapourbaixdomainoptions\csname luapourbaixdomainstyle#2\endcsname
+    \expandafter\let\expandafter\luapourbaixdomainnodeoptions\csname luapourbaixdomainnodestyle#2\endcsname
+    \expandafter\let\expandafter\luapourbaixdomainhaslabel\csname luapourbaixdomainhastext#2\endcsname
+    \expandafter\let\expandafter\luapourbaixdomainlabel\csname luapourbaixdomaintext#2\endcsname
+  \fi
+}
+\def\luapourbaixplotfill#1#2#3{%
+  \pgfkeysgetvalue{/pgfplots/pourbaix/plot/#1 domain style}\luapourbaixplotstyle
+  \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain style}\luapourbaixcommondomainstyle
+  \edef\luapourbaixnext{%
+    \noexpand\addplot[forget plot,mark=none,draw=none,
+      \pgfutil@unexpanded\expandafter{\luapourbaixplotstyle},
+      \pgfutil@unexpanded\expandafter{\luapourbaixcoloroptions},
+      \pgfutil@unexpanded\expandafter{\luapourbaixcommondomainstyle},
+      /pgfplots/pourbaix/species #2/.try,
+      \pgfutil@unexpanded\expandafter{\luapourbaixdomainoptions}] coordinates {#3} --cycle;%
+  }%
+  \luapourbaixnext
+}
+\def\luapourbaixplotname#1#2#3#4{%
+  \pgfkeysgetvalue{/pgfplots/pourbaix/plot/#1 domain label style}\luapourbaixlabelstyle
+  \def\luapourbaixlabeltext{#4}%
+  \ifnum\luapourbaixdomainhaslabel=1
+    \let\luapourbaixlabeltext\luapourbaixdomainlabel
+    \def\luapourbaixkind{#1}\def\luapourbaixremovedkind{removed}%
+    \ifx\luapourbaixkind\luapourbaixremovedkind
+      \edef\luapourbaixlabeltext{\pgfutil@unexpanded\expandafter{\luapourbaixdomainlabel}
+        \noexpand\hbox{(incompatible domain)}}%
+    \fi
+  \fi
+  \edef\luapourbaixnext{%
+    \noexpand\addplot[forget plot,draw=none,mark=none] coordinates {#3}
+      node[pourbaix/domain label,\pgfutil@unexpanded\expandafter{\luapourbaixlabelstyle},
+      /tikz/pourbaix/species #2 label/.try,
+      \pgfutil@unexpanded\expandafter{\luapourbaixdomainnodeoptions}]
+      {\pgfutil@unexpanded\expandafter{\luapourbaixlabeltext}};%
+  }%
+  \luapourbaixnext
+}
+\pgfplotsset{
+  pourbaix/plot/boundary/.unknown/.code={%
+    \def\luapourbaixmissingvalue{\pgfkeysnovalue}%
+    \ifx\pgfkeyscurrentvalue\luapourbaixmissingvalue
+      \def\luapourbaixplotvalid{0}%
+      \pgferror{luapourbaix: boundary keys require an option list}%
+    \else
+      \expandafter\luapourbaixcustomboundary\expandafter{\pgfkeyscurrentname}{#1}%
+    \fi},
+  pourbaix/boundary/.unknown/.code={\def\luapourbaixplotvalid{0}%
+    \pgferror{luapourbaix: unknown boundary presentation key '\pgfkeyscurrentkey'}},
+  pourbaix/boundary/style/.store in=\luapourbaixcustomstyle,
+  pourbaix/boundary/style/.value required,
+  pourbaix/boundary/label style/.store in=\luapourbaixcustomnodestyle,
+  pourbaix/boundary/label style/.value required,
+  pourbaix/boundary/label/.code={\def\luapourbaixcustomtext{#1}\def\luapourbaixcustomhastext{1}},
+  pourbaix/boundary/label/.value required,
+  pourbaix/domain/.unknown/.code={\def\luapourbaixplotvalid{0}%
+    \pgferror{luapourbaix: unknown domain key '\pgfkeyscurrentkey'}},
+  pourbaix/domain/species/.code={%
+    \ifx\luapourbaixpathspecies\pgfutil@empty
+      \def\luapourbaixcustomspecies{#1}%
+    \else
+      \def\luapourbaixplotvalid{0}%
+      \pgferror{luapourbaix: species is already specified in the domain key path}%
+    \fi},
+  pourbaix/domain/species/.value required,
+  pourbaix/domain/label/.code={\def\luapourbaixcustomtext{#1}\def\luapourbaixcustomhastext{1}},
+  pourbaix/domain/label/.value required,
+  pourbaix/domain/label at/.store in=\luapourbaixcustomat,
+  pourbaix/domain/label at/.value required,
+  pourbaix/domain/label style/.store in=\luapourbaixcustomnodestyle,
+  pourbaix/domain/label style/.value required,
+  pourbaix/domain/style/.store in=\luapourbaixcustomstyle,
+  pourbaix/domain/style/.value required,
+  pourbaix/plot/domain/.code={\luapourbaixcustomdomain{#1}},
+  pourbaix/plot/domain/.value required,
+  pourbaix/plot/domain/.unknown/.code={%
+    \def\luapourbaixmissingvalue{\pgfkeysnovalue}%
+    \ifx\pgfkeyscurrentvalue\luapourbaixmissingvalue
+      \def\luapourbaixplotvalid{0}%
+      \pgferror{luapourbaix: domain species keys require an option list}%
+    \else
+      \expandafter\luapourbaixcustomdomainfor\expandafter{\pgfkeyscurrentname}{#1}%
+    \fi},
+  pourbaix/plot/final diagram/.style={show removed=false,show provisional boundaries=false},
+  pourbaix/plot/domain coloring/.initial=adjacent,
+  pourbaix/plot/domain coloring/.value required,
+  pourbaix/plot/domain colors/.initial={blue!15,orange!20,green!15,violet!15,yellow!25,red!15},
+  pourbaix/plot/domain colors/.value required,
+  pourbaix/plot/domain patterns/.initial={north east lines,north west lines,dots,horizontal lines,vertical lines,crosshatch},
+  pourbaix/plot/domain patterns/.value required,
+  pourbaix/plot/domain palette/.is choice,
+  pourbaix/plot/domain palette/.value required,
+  pourbaix/plot/domain palette/tab10/.style={/pgfplots/pourbaix/plot/domain coloring=adjacent,/pgfplots/pourbaix/plot/domain colors={luapourbaixtab1,luapourbaixtab2,luapourbaixtab3,luapourbaixtab4,luapourbaixtab5,luapourbaixtab6,luapourbaixtab7,luapourbaixtab8,luapourbaixtab9,luapourbaixtab10}},
+  pourbaix/plot/domain palette/tab10 light/.style={/pgfplots/pourbaix/plot/domain coloring=adjacent,/pgfplots/pourbaix/plot/domain colors={luapourbaixtab1!25,luapourbaixtab2!25,luapourbaixtab3!25,luapourbaixtab4!25,luapourbaixtab5!25,luapourbaixtab6!25,luapourbaixtab7!25,luapourbaixtab8!25,luapourbaixtab9!25,luapourbaixtab10!25}},
+  pourbaix/plot/domain palette/grayscale/.style={/pgfplots/pourbaix/plot/domain coloring=adjacent,/pgfplots/pourbaix/plot/domain colors={black!8,black!45,black!22,black!65}},
+  pourbaix/plot/domain palette/patterns/.style={/pgfplots/pourbaix/plot/domain coloring=patterns,/pgfplots/pourbaix/plot/domain patterns={north east lines,north west lines,dots,horizontal lines,vertical lines,crosshatch}},
+  pourbaix/plot/domain palette/hatching/.style={/pgfplots/pourbaix/plot/domain coloring=patterns,/pgfplots/pourbaix/plot/domain patterns={north east lines,north west lines,horizontal lines,vertical lines,crosshatch}},
+  pourbaix/plot/domain palette/monochrome/.style={/pgfplots/pourbaix/plot/domain palette=patterns},
+  pourbaix/plot/domain style/.initial={},
+  pourbaix/plot/domain style/.value required,
+  pourbaix/plot/domain label mode/.initial=species,
+  pourbaix/plot/domain label mode/.value required,
+  pourbaix/plot/domain label placement/.initial=centroid,
+  pourbaix/plot/domain label placement/.value required,
+  pourbaix/plot/letter species list/.initial={},
+  pourbaix/plot/letter species list/.value required,
+  pourbaix/plot/letter species/.style={domain label mode=letters,letter species list={#1}},
+  pourbaix/plot/letter species/.value required,
+  pourbaix/plot/.unknown/.code={\def\luapourbaixplotvalid{0}%
+    \pgferror{luapourbaix: unknown plot key '\pgfkeyscurrentkey'}},
+  pourbaix/plot/handle/.initial={},
+  pourbaix/plot/handle/.value required,
+  pourbaix/plot/domain fills/.default=true,
+  pourbaix/plot/domain fills/.initial=true,
+  pourbaix/plot/domain labels/.default=true,
+  pourbaix/plot/domain labels/.initial=true,
+  pourbaix/plot/boundaries/.default=true,
+  pourbaix/plot/boundaries/.initial=true,
+  pourbaix/plot/boundary labels/.default=true,
+  pourbaix/plot/boundary labels/.initial=true,
+  pourbaix/plot/show removed boundaries/.default=true,
+  pourbaix/plot/show removed boundaries/.initial=false,
+  pourbaix/plot/show removed domains/.default=true,
+  pourbaix/plot/show removed domains/.initial=false,
+  pourbaix/plot/show provisional boundaries/.default=true,
+  pourbaix/plot/show provisional boundaries/.initial=false,
+  pourbaix/plot/provisional labels/.default=true,
+  pourbaix/plot/provisional labels/.initial=false,
+  pourbaix/plot/show removed/.style={show removed boundaries=#1,show removed domains=#1},
+  pourbaix/plot/show removed/.default=true,
+  pourbaix/plot/final boundary style/.initial={black,semithick},
+  pourbaix/plot/removed boundary style/.initial={red!70!black,dashed,thin},
+  pourbaix/plot/provisional boundary style/.initial={gray,densely dotted,thin},
+  pourbaix/plot/existence domain style/.initial={fill=blue!10},
+  pourbaix/plot/predominance domain style/.initial={fill=green!8},
+  pourbaix/plot/removed domain style/.initial={fill=red!18,fill opacity=.55},
+  pourbaix/plot/boundary label style/.initial={},
+  pourbaix/plot/final domain label style/.initial={},
+  pourbaix/plot/removed domain label style/.initial={text=red!70!black},
+}
+\tikzset{
+  pourbaix/boundary label/.style={midway,fill=white,inner sep=1.5pt},
+  pourbaix/domain label/.style={inner sep=2pt},
+  pics/pourbaix map/.style={code={\luapourbaixdrawclassification{map}{#1}}},
+  pics/pourbaix map/.default={},
+  pourbaix/map row sep/.initial=1.8cm,
+  pourbaix/map boundary/.style={semithick},
+  pourbaix/map long edge/.style={bend right=55},
+  pourbaix/map long label/.style={pos=.3},
+  pourbaix/map boundary label/.style={midway,fill=white,inner sep=1.5pt},
+  pourbaix/map removed species/.style={dashed,text=gray},
+}
+% Reports compose existing public renderers. Foreach groups own each block;
+% the captured handle and option tokens live until each axis has visualized.
+\def\pgfplotspourbaixreport{\pgfutil@ifnextchar[{\luapourbaixreport}{\luapourbaixreport[]}}
+\def\luapourbaixreport[#1]#2{%
+  \begingroup
+  \def\luapourbaixreportvalid{1}%
+  \pgfqkeys{/pgfplots/pourbaix/report}{#1}%
+  \pgfkeysgetvalue{/pgfplots/pourbaix/report/handle}\luapourbaixreporthandle
+  \ifx\luapourbaixreporthandle\pgfutil@empty
+    \def\luapourbaixlookupname{#2}%
+    \directlua{luapourbaix.resolve_name()}%
+    \let\luapourbaixreporthandle\luapourbaixresult
+  \fi
+  \ifx\luapourbaixreporthandle\pgfutil@empty\else
+    \directlua{luapourbaix.prepare_report()}%
+    \ifnum\luapourbaixreportvalid=1
+      \tikzset{pourbaix/handle/.expanded=\luapourbaixreporthandle}%
+      \pgfkeysgetvalue{/pgfplots/pourbaix/report/sections}\luapourbaixreportsections
+      \foreach\luapourbaixreportsection in \luapourbaixreportsections{%
+        \ifcsname luapourbaixreportsection\luapourbaixreportsection\endcsname
+          \csname luapourbaixreportsection\luapourbaixreportsection\endcsname
+        \else\pgferror{luapourbaix: unknown report section '\luapourbaixreportsection'}\fi
+      }%
+    \fi
+  \fi
+  \endgroup
+}
+\def\luapourbaixreportnumber#1{\pgfmathprintnumber[precision=5]{#1}}
+\def\luapourbaixreportcard#1{%
+  \par\noindent\tikzpicture
+    \node[pourbaix/report card] {#1};%
+  \endtikzpicture\par\smallskip
+}
+\def\luapourbaixreportheading#1{%
+  \par\noindent\tikzpicture
+    \node[pourbaix/report heading] {#1};%
+  \endtikzpicture\par\nobreak\smallskip
+}
+\def\luapourbaixreportsectionheader{\luapourbaixreportheading{Pourbaix report}%
+  \luapourbaixreportcard{\luapourbaixreportsummary}}
+\def\luapourbaixreportpicture#1#2{%
+  \luapourbaixreportheading{#2}%
+  \noindent\tikzpicture[pourbaix/report classification]
+    \pic {pourbaix #1};%
+  \endtikzpicture\par\smallskip
+}
+\def\luapourbaixreportsectionoxidation{\luapourbaixreportpicture{oxidation}{Oxidation states}}
+\def\luapourbaixreportsectionacidity{\luapourbaixreportpicture{acidity}{Acidity within each oxidation state}}
+\def\luapourbaixreportsectionmap{\luapourbaixreportpicture{map}{Retained chemical pairs}}
+\def\luapourbaixreportsectionplot{%
+  \luapourbaixreportheading{Limiting diagram and inactive supports}%
+  \pgfkeysgetvalue{/pgfplots/pourbaix/report/axis options}\luapourbaixreportaxis
+  \pgfkeysgetvalue{/pgfplots/pourbaix/report/plot options}\luapourbaixreportplot
+  \edef\luapourbaixnext{%
+    \noexpand\tikzpicture
+    \noexpand\axis[pourbaix/axis,width=11cm,height=7cm,
+      \pgfutil@unexpanded\expandafter{\luapourbaixreportaxis}]%
+    \noexpand\pgfplotsaddpourbaix[show removed,
+      \pgfutil@unexpanded\expandafter{\luapourbaixreportplot},
+      handle=\luapourbaixreporthandle]{};%
+    \noexpand\endaxis\noexpand\endtikzpicture}%
+  \noindent\luapourbaixnext\par\smallskip
+  \luapourbaixreportcard{Diagnostic overlays, when enabled, show inactive supports
+    and incompatible domains. These bands are not stable regions.
+    Labels identify retained pairs.}%
+}
+\def\luapourbaixreportrows#1#2#3{%
+  \luapourbaixreportheading{#1}%
+  \ifx#3\pgfutil@empty\else
+    \foreach\luapourbaixreportindex in #3{%
+      \luapourbaixreportcard{\csname luapourbaixreport#2\luapourbaixreportindex\endcsname}%
+    }%
+  \fi
+}
+\def\luapourbaixreportsectioninputs{\luapourbaixreportrows{Thermodynamic inputs}{input}\luapourbaixreportinputs}
+\def\luapourbaixreportsectionconstants{\luapourbaixreportrows{Water, phases and recovered constants}{constant}\luapourbaixreportconstants}
+\def\luapourbaixreportsectionboundaries{\luapourbaixreportrows{All provisional boundary equations}{boundary}\luapourbaixreportboundaries}
+\def\luapourbaixreportsectionevents{%
+  \ifx\luapourbaixreportevents\pgfutil@empty\else
+    \luapourbaixreportrows{Elimination and replacement events}{event}\luapourbaixreportevents
+  \fi}
+\pgfplotsset{
+  pourbaix/report/handle/.initial={},
+  pourbaix/report/handle/.value required,
+  pourbaix/report/sections/.initial={header,oxidation,acidity,map,plot,events,inputs,constants,boundaries},
+  pourbaix/report/sections/.value required,
+  pourbaix/report/axis options/.initial={},
+  pourbaix/report/axis options/.value required,
+  pourbaix/report/plot options/.initial={},
+  pourbaix/report/plot options/.value required,
+  pourbaix/report/text width/.initial=11cm,
+  pourbaix/report/text width/.value required,
+}
+\tikzset{
+  pourbaix/report card/.style={draw=blue!25!black,fill=blue!2,rounded corners=2pt,
+    inner sep=6pt,align=left,text width=\pgfkeysvalueof{/pgfplots/pourbaix/report/text width}},
+  pourbaix/report heading/.style={fill=blue!65!black,text=white,rounded corners=2pt,
+    inner sep=6pt,align=left,text width=\pgfkeysvalueof{/pgfplots/pourbaix/report/text width}},
+  pourbaix/report classification/.style={scale=.8,transform shape},
+}
+
+% Independent water model: numeric preparation is separate from presentation.
+\pgfplotsset{pourbaix/water/prepare/.code={\luapourbaixpreparewater{#1}}}
+\let\luapourbaixwaterpreparefailure\relax
+\def\luapourbaixpreparewater#1{%
+  \begingroup
+  \def\luapourbaixwatervalid{1}%
+  \let\luapourbaixwatererror\pgferror
+  \def\pgferror##1{\def\luapourbaixwatervalid{0}\luapourbaixwatererror{##1}}%
+  \def\luapourbaixwaternernstfactor{}%
+  \def\luapourbaixwatertemperature{}\def\luapourbaixwaterdiagram{}%
+  \def\luapourbaixwaterhydrogenpressure{1}\def\luapourbaixwateroxygenpressure{1}%
+  \def\luapourbaixwateroxygenstandardpotential{}%
+  \pgfkeys{/errors/value required/.code 2 args={%
+    \pgferror{luapourbaix: water key '##1' requires a value}}}%
+  \pgfqkeys{/pgfplots/pourbaix/water/input}{#1}%
+  \def\luapourbaixwaterresult{}\ifnum\luapourbaixwatervalid=1 \directlua{luapourbaix.prepare_water()}\fi%
+  \ifx\luapourbaixwaterresult\pgfutil@empty
+    \endgroup\luapourbaixwaterpreparefailure
+  \else
+    \expandafter\endgroup\luapourbaixwaterresult
+  \fi
+}
+\pgfplotsset{
+ pourbaix/water/input/.unknown/.code={\def\luapourbaixwatervalid{0}\pgferror{luapourbaix: unknown water input key}},
+ pourbaix/water/input/nernst factor/.store in=\luapourbaixwaternernstfactor,
+ pourbaix/water/input/nernst factor/.value required,
+ pourbaix/water/input/temperature/.store in=\luapourbaixwatertemperature,
+ pourbaix/water/input/diagram/.store in=\luapourbaixwaterdiagram,
+ pourbaix/water/input/hydrogen pressure/.store in=\luapourbaixwaterhydrogenpressure,
+ pourbaix/water/input/oxygen pressure/.store in=\luapourbaixwateroxygenpressure,
+ pourbaix/water/input/oxygen standard potential/.store in=\luapourbaixwateroxygenstandardpotential,
+ pourbaix/water/domain fills/.is choice,
+ pourbaix/water/domain fills/true/.code={\pgfkeyssetvalue{/pgfplots/pourbaix/water/domain fills}{true}},
+ pourbaix/water/domain fills/false/.code={\pgfkeyssetvalue{/pgfplots/pourbaix/water/domain fills}{false}},
+ pourbaix/water/domain fills/.initial=false,
+ pourbaix/water/domain labels/.is choice,
+ pourbaix/water/domain labels/true/.code={\pgfkeyssetvalue{/pgfplots/pourbaix/water/domain labels}{true}},
+ pourbaix/water/domain labels/false/.code={\pgfkeyssetvalue{/pgfplots/pourbaix/water/domain labels}{false}},
+ pourbaix/water/domain labels/.initial=true,
+ pourbaix/water/boundary style/.initial={blue!70!black,dashed,thick},
+ pourbaix/water/domain style/.initial={fill opacity=.15},
+ pourbaix/water/label style/.initial={},
+}
+\pgfplotsset{
+ pourbaix/water/prepare/.value required,
+ pourbaix/water/input/temperature/.value required,
+ pourbaix/water/input/diagram/.value required,
+ pourbaix/water/input/hydrogen pressure/.value required,
+ pourbaix/water/input/oxygen pressure/.value required,
+ pourbaix/water/input/oxygen standard potential/.value required,
+}
+\def\luapourbaixwaterdeclareappearance#1#2#3{%
+ \pgfplotsset{pourbaix/water/#1/#2/.code={\pgfqkeys{/pgfplots/pourbaix/water/#1/#2}{##1}},
+  pourbaix/water/#1/#2/style/.initial={},
+  pourbaix/water/#1/#2/label/.initial={#3},
+  pourbaix/water/#1/#2/label style/.initial={}}
+}
+\luapourbaixwaterdeclareappearance{boundary}{H2}{}
+\luapourbaixwaterdeclareappearance{boundary}{O2}{}
+\luapourbaixwaterdeclareappearance{domain}{H2}{$\hbox{H}_2(\hbox{g})$}
+\luapourbaixwaterdeclareappearance{domain}{H2O}{$\hbox{H}_2\hbox{O}$}
+\luapourbaixwaterdeclareappearance{domain}{O2}{$\hbox{O}_2(\hbox{g})$}
+\pgfplotsset{pourbaix/water/domain/H2/style={fill=orange!50},
+ pourbaix/water/domain/H2O/style={fill=blue!30},
+ pourbaix/water/domain/O2/style={fill=green!40}}
+\def\pgfplotsaddpourbaixwater{\pgfutil@ifnextchar[{\luapourbaixwatercommand}{\luapourbaixwatercommand[]}}
+\def\luapourbaixwatercommand[#1]{%
+  \luapourbaixrequiresemicolon{\luapourbaixaddwater[#1]}%
+}
+\def\luapourbaixaddwater[#1]{%
+ \pgfplotsifinaxis{%
+  \begingroup
+  \def\luapourbaixplotvalid{1}%
+  \luapourbaixguardploterrors
+  \def\luapourbaixwaterpreparefailure{\def\luapourbaixplotvalid{0}}%
+  \def\luapourbaixtickcommit{}%
+  \pgfplotsifaxisthreedim{\def\luapourbaixplotvalid{0}}{}%
+  \ifpgfplots@xislinear\else\def\luapourbaixplotvalid{0}\fi
+  \ifpgfplots@yislinear\else\def\luapourbaixplotvalid{0}\fi
+  \ifnum\luapourbaixplotvalid=0
+    \pgferror{luapourbaix: water plotting requires a two-dimensional linear axis}%
+  \fi
+  \pgfqkeys{/pgfplots/pourbaix/water}{#1}%
+  \pgfkeysgetvalue{/pgfplots/pourbaix/water/extra y ticks}\luapourbaixwateryticks
+  \pgfkeysgetvalue{/pgfplots/xmin}\luapourbaixplotxmin
+  \pgfkeysgetvalue{/pgfplots/xmax}\luapourbaixplotxmax
+  \pgfkeysgetvalue{/pgfplots/ymin}\luapourbaixplotymin
+  \pgfkeysgetvalue{/pgfplots/ymax}\luapourbaixplotymax
+  \pgfkeysgetvalue{/pgfplots/pourbaix/water/data/a}\luapourbaixwatera
+  \pgfkeysgetvalue{/pgfplots/pourbaix/water/data/hydrogen b}\luapourbaixwaterhydrogenb
+  \pgfkeysgetvalue{/pgfplots/pourbaix/water/data/oxygen b}\luapourbaixwateroxygenb
+  \ifnum\luapourbaixplotvalid=1 \directlua{luapourbaix.plot_water()}%
+  \fi
+  \expandafter\endgroup\luapourbaixtickcommit
+ }{\pgferror{luapourbaix: use \string\pgfplotsaddpourbaixwater\space inside an axis}}%
+}
+\def\luapourbaixwaterline#1#2{%
+ \pgfkeysgetvalue{/pgfplots/pourbaix/water/boundary style}\luapourbaixwaterstyle
+ \pgfkeysgetvalue{/pgfplots/pourbaix/water/boundary/#1/style}\luapourbaixwaterlocalstyle
+ \pgfkeysgetvalue{/pgfplots/pourbaix/water/boundary/#1/label}\luapourbaixwaterlabel
+ \pgfkeysgetvalue{/pgfplots/pourbaix/water/boundary/#1/label style}\luapourbaixwaternodestyle
+ \edef\luapourbaixnext{\noexpand\addplot[forget plot,mark=none,
+  \pgfutil@unexpanded\expandafter{\luapourbaixwaterstyle},
+  \pgfutil@unexpanded\expandafter{\luapourbaixwaterlocalstyle}] coordinates {#2}
+  \ifx\luapourbaixwaterlabel\pgfutil@empty\else
+   node[pourbaix/boundary label,\pgfutil@unexpanded\expandafter{\luapourbaixwaternodestyle}]
+    {\pgfutil@unexpanded\expandafter{\luapourbaixwaterlabel}}%
+  \fi;}%
+ \luapourbaixnext
+}
+\def\luapourbaixwaterregion#1#2#3{%
+ \pgfkeysgetvalue{/pgfplots/pourbaix/water/domain style}\luapourbaixwaterstyle
+ \pgfkeysgetvalue{/pgfplots/pourbaix/water/domain/#1/style}\luapourbaixwaterlocalstyle
+ \pgfkeysgetvalue{/pgfplots/pourbaix/water/domain fills}\luapourbaixwaterflag
+ \def\luapourbaixwatertrue{true}%
+ \ifx\luapourbaixwaterflag\luapourbaixwatertrue
+  \edef\luapourbaixnext{\noexpand\addplot[forget plot,draw=none,mark=none,
+   \pgfutil@unexpanded\expandafter{\luapourbaixwaterstyle},
+   \pgfutil@unexpanded\expandafter{\luapourbaixwaterlocalstyle}] coordinates {#2} --cycle;}%
+  \luapourbaixnext
+ \fi
+ \pgfkeysgetvalue{/pgfplots/pourbaix/water/domain labels}\luapourbaixwaterflag
+ \ifx\luapourbaixwaterflag\luapourbaixwatertrue
+  \pgfkeysgetvalue{/pgfplots/pourbaix/water/label style}\luapourbaixwaterstyle
+  \pgfkeysgetvalue{/pgfplots/pourbaix/water/domain/#1/label style}\luapourbaixwaterlocalstyle
+  \pgfkeysgetvalue{/pgfplots/pourbaix/water/domain/#1/label}\luapourbaixwaterlabel
+  \edef\luapourbaixnext{\noexpand\addplot[forget plot,draw=none,mark=none] coordinates {#3}
+   node[\pgfutil@unexpanded\expandafter{\luapourbaixwaterstyle},
+   \pgfutil@unexpanded\expandafter{\luapourbaixwaterlocalstyle}]
+   {\pgfutil@unexpanded\expandafter{\luapourbaixwaterlabel}};}%
+  \luapourbaixnext
+ \fi
+}
+
+% Preferred concise commands; retain the original public names as aliases.
+\let\addpourbaix\pgfplotsaddpourbaix
+\let\addpourbaixwater\pgfplotsaddpourbaixwater
+\pgfplotsset{
+ pourbaix/plot/extra ticks/.style={extra x ticks={#1},extra y ticks={#1}},
+ pourbaix/plot/extra ticks/.default=all,
+ pourbaix/plot/extra x ticks/.initial=none,
+ pourbaix/plot/extra x ticks/.default=all,
+ pourbaix/plot/extra y ticks/.initial=none,
+ pourbaix/plot/extra y ticks/.default=all,
+ pourbaix/plot/extra x tick style/.initial={},
+ pourbaix/plot/extra x tick style/.value required,
+ pourbaix/plot/extra y tick style/.initial={},
+ pourbaix/plot/extra y tick style/.value required,
+ pourbaix/water/extra ticks/.style={extra y ticks={#1}},
+ pourbaix/water/extra ticks/.default=all,
+ pourbaix/water/extra y ticks/.initial=none,
+ pourbaix/water/extra y ticks/.default=all,
+ pourbaix/water/extra x tick style/.initial={},
+ pourbaix/water/extra y tick style/.initial={},
+ pourbaix/water/extra y tick style/.value required,
+}
+% Capture inert style tokens before the plotting option group closes. Commit
+% through public PGFPlots keys in the caller's scope, before visualization.
+\def\luapourbaixcaptureticks#1#2#3{%
+ \pgfkeysgetvalue{#3/extra x tick style}\luapourbaixxtickstyle
+ \pgfkeysgetvalue{#3/extra y tick style}\luapourbaixytickstyle
+ \edef\luapourbaixtickcommit{\noexpand\luapourbaixapplyticks{#1}{#2}%
+  {\pgfutil@unexpanded\expandafter{\luapourbaixxtickstyle}}%
+  {\pgfutil@unexpanded\expandafter{\luapourbaixytickstyle}}}%
+}
+\def\luapourbaixapplyticks#1#2#3#4{%
+ \def\luapourbaixnewticks{#1}%
+ \ifx\luapourbaixnewticks\pgfutil@empty\else
+  \edef\luapourbaixnext{\noexpand\pgfplotsset{
+   extra x ticks={\ifx\pgfplots@extra@xtick\pgfutil@empty\else
+    \pgfutil@unexpanded\expandafter{\pgfplots@extra@xtick},\fi#1},
+   extra x tick style={\pgfutil@unexpanded{#3}}}}%
+  \luapourbaixnext
+ \fi
+ \def\luapourbaixnewticks{#2}%
+ \ifx\luapourbaixnewticks\pgfutil@empty\else
+  \edef\luapourbaixnext{\noexpand\pgfplotsset{
+   extra y ticks={\ifx\pgfplots@extra@ytick\pgfutil@empty\else
+    \pgfutil@unexpanded\expandafter{\pgfplots@extra@ytick},\fi#2},
+   extra y tick style={\pgfutil@unexpanded{#4}}}}%
+  \luapourbaixnext
+ \fi
+}
+\endinput

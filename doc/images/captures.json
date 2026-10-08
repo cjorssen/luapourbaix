@@ -1,0 +1,32 @@
+{
+  "manual_sha256": "0b3be533c021bdcf5fcece6a9f66c0b7853ff89701254fd10e1a870691fb586e",
+  "figures": {
+    "iron-water": {
+      "page": 7,
+      "crop_pixels_at_180dpi": [
+        177,
+        694,
+        1039,
+        1208
+      ]
+    },
+    "iodine-conventions": {
+      "page": 12,
+      "crop_pixels_at_180dpi": [
+        177,
+        555,
+        1262,
+        1014
+      ]
+    },
+    "uranium-palettes": {
+      "page": 16,
+      "crop_pixels_at_180dpi": [
+        177,
+        1162,
+        1235,
+        1692
+      ]
+    }
+  }
+}

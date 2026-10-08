@@ -1,0 +1,41 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+\usemodule[pgfplots]
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary[pourbaix]
+\usepgfplotslibrary[pourbaix]
+\starttext
+\directlua{assert(type(luapourbaix.core.version) == "string")}
+\input declarations-common.tex
+\input thermodynamics-common.tex
+\input database-common.tex
+\input equations-common.tex
+\input selection-common.tex
+\input rendering-common.tex
+\input report-common.tex
+\input appearance-common.tex
+\input addressed-common.tex
+\input water-common.tex
+\input gallery-common.tex
+\input ticks-common.tex
+\input environment-common.tex
+\starttikzpicture[scale=0.6,transform shape]
+  \input classification-pics.tex
+\stoptikzpicture
+\par
+\starttikzpicture
+  \startaxis[pourbaix/axis,width=7cm,height=5cm,xmin=0,xmax=14,ymin=-1,ymax=1]
+    \input axis-declarations.tex
+  \stopaxis
+\stoptikzpicture
+\pgfplotsgetpourbaix{Fe1E-2}\afteraxis
+\ifx\savediron\afteraxis\else\errmessage{Axis declaration escaped scope}\fi
+\starttikzpicture
+\startpourbaix[xmin=0,xmax=1,ymin=0,ymax=1,width=5cm,height=4cm]
+\addplot coordinates {(0,0) (1,1)};
+\stoppourbaix
+\stoptikzpicture
+\stoptext

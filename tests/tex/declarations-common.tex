@@ -1,0 +1,107 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+% Shared behavioral checks, run under all three formats. Values are test data.
+\pgfpourbaixset{
+  diagram/test iron/.style={
+    element=Fe,temperature=298.15,
+    species={Fe(s),Fe^2+,Fe^3+,Fe(OH)2(s),Fe(OH)3(s)},
+    concentration=1e-2,
+    boundary convention=equal concentrations,
+    constants={
+      standard potential={oxidized=Fe^3+,reduced=Fe^2+,value=0.77},
+      standard potential={oxidized=Fe^2+,reduced=Fe(s),value=-0.44},
+      solubility product={solid=Fe(OH)2(s),value=1e-15},
+      solubility product={solid=Fe(OH)3(s),value=1e-38}
+    }
+  },
+  declare={test iron,name=Fe1E-2}
+}
+\pgfplotsgetpourbaix{Fe1E-2}\savediron
+\directlua{
+  local d = luapourbaix.get(token.get_macro("savediron"))
+  assert(d.element == "Fe" and d.concentration == 0.01)
+  assert(d.species[5].composition.H == 3)
+  assert(d.constants[2].value == -0.44)
+  assert(d.temperature == 298.15)
+  assert(d.oxidation_groups[2].species[1].id == "Fe^2+")
+  assert(d.boundaries_by_name["a-temp"].kind == "vertical")
+}
+\pgfplotsset{pourbaix/declare={
+  element=Fe,temperature=310,species={Fe(CN)6^4-,Fe^2+},constants={},
+  concentration=1e-2,boundary convention=equal concentrations,
+  species data={species=Fe(CN)6^4-,oxidation number=2,acidity rank=2},
+  species data={species=Fe^2+,acidity rank=1},
+  boundary labels={vertical prefix=v-,redox prefix=r-,suffix=-trial},
+  boundary name={first=Fe^2+,second=Fe(CN)6^4-,name=complexation-temp}
+}}
+\directlua{
+  local d = luapourbaix.get(token.get_macro("pgfplotslastpourbaix"))
+  assert(d.temperature == 310)
+  assert(d.ordered_species[1].id == "Fe^2+")
+  assert(d.boundaries_by_name["complexation-temp"].law == "equilibrium quotient")
+}
+\begingroup
+  \def\localconcentration{2e-2}%
+  \pgfplotsset{pourbaix/declare={
+    test iron,name=Fe1E-2,concentration/.expanded=\localconcentration
+  }}%
+  \pgfplotsgetpourbaix{Fe1E-2}\localiron
+  \directlua{
+    assert(luapourbaix.get(token.get_macro("localiron")).concentration == 0.02)
+    assert(luapourbaix.get(token.get_macro("savediron")).concentration == 0.01)
+  }%
+\endgroup
+\pgfplotsgetpourbaix{Fe1E-2}\restorediron
+\ifx\savediron\restorediron\else\errmessage{Diagram alias escaped its group}\fi
+\pgfplotsset{pourbaix/declare={
+  element=Cr,temperature=298.15,species={Cr2O7^2-,Cr^{3+}(aq)},constants={},
+  concentration=1.2e-2,boundary convention=equal element concentrations
+}}
+\directlua{
+  local d = luapourbaix.get(token.get_macro("pgfplotslastpourbaix"))
+  local a, b = luapourbaix.core.aqueous_boundary_concentrations(d,"Cr2O7^2-","Cr^3+")
+  assert(a == 0.003 and b == 0.006)
+  assert(d.name == nil)
+}
+% Continue after deliberately intercepted diagnostics to check transaction
+% atomicity, not merely whether halt-on-error stops the engine.
+\begingroup
+  \let\savedlast\pgfplotslastpourbaix
+  \def\pgferror#1{\message{Expected PGF diagnostic}}%
+  \directlua{
+    luapourbaixTest = { original = tex.error, count = 0 }
+    tex.error = function(message)
+      luapourbaixTest.count = luapourbaixTest.count + 1
+    end
+  }%
+  \pgfplotsset{pourbaix/declare={test iron,name=Fe1E-2,concentration=0}}%
+  \pgfplotsset{pourbaix/declare={test iron,name=Fe1E-2,typo=1}}%
+  \pgfplotsset{pourbaix/declare={test iron,name=Fe1E-2,element}}%
+  \pgfplotsset{pourbaix/declare={test iron,name=Fe1E-2,
+    concentration={0); luapourbaix.injection=true; --}}}%
+  \pgfplotsset{pourbaix/declare={test iron,name=Fe1E-2,
+    species data={species=Fe(s),oxidation number=4}}}%
+  \directlua{
+    tex.error = luapourbaixTest.original
+    assert(luapourbaixTest.count == 3)
+    assert(luapourbaix.injection == nil)
+    luapourbaixTest = nil
+  }%
+  \pgfplotsgetpourbaix{Fe1E-2}\afterfailure
+  \ifx\savediron\afterfailure\else\errmessage{Invalid declaration replaced a name}\fi
+  \ifx\savedlast\pgfplotslastpourbaix\else\errmessage{Invalid declaration changed last handle}\fi
+\endgroup
+\pgfplotsset{pourbaix/declare={
+  test iron,name=FeLabels,
+  boundary labels={vertical prefix=v-,redox prefix=r-,suffix=-trial},
+  boundary name={first=Fe(OH)2(s),second=Fe^2+,name=precip-II}
+}}
+\directlua{
+  local d = luapourbaix.get(token.get_macro("pgfplotslastpourbaix"))
+  assert(d.boundaries_by_name["precip-II"].kind == "vertical")
+  assert(d.boundaries_by_name["v-b-trial"].kind == "vertical")
+  assert(d.boundaries_by_name["r-8-trial"].kind == "redox")
+}

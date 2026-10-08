@@ -1,0 +1,61 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+% Public aliases, cumulative native ticks, scoping and failure atomicity.
+\pgfplotsset{pourbaix/declare={name=TickNi,element=Ni,
+ species={Ni(s),Ni^2+,Ni(OH)2(s)},temperature=298.15,concentration=.01,
+ boundary convention=equal concentrations,constants={}},
+ pourbaix/check=TickNi,pourbaix/calculate=TickNi,
+ pourbaix/pH min=0,pourbaix/pH max=14,pourbaix/finalize=TickNi}
+\pgfplotsgetpourbaix{TickNi}\tickbefore
+\tikzpicture
+\axis[pourbaix/axis,width=8cm,height=6cm,xmin=0,xmax=14,ymin=-2,ymax=2,
+ extra x ticks={3},extra y ticks={0}]
+ \addpourbaix[extra ticks,
+  extra x tick style={tick label style={text=red,rotate=45}},
+  extra y tick style={tick label style={text=blue}}]{TickNi};
+ \directlua{
+  local x=token.get_macro('pgfplots@extra@xtick')
+  local y=token.get_macro('pgfplots@extra@ytick')
+  assert(x:sub(1,2)=='3,')
+  local count=0
+  for n in x:gmatch('[^,]+') do count=count+1 end
+  assert(count==2)
+  count=0
+  for n in y:gmatch('[^,]+') do count=count+1 end
+  assert(count==2)
+ }
+ % Identical overlays must not duplicate numeric ticks.
+ \addpourbaix[extra ticks,domain fills=false,domain labels=false]{TickNi};
+ \addpourbaixwater[prepare={diagram=TickNi},extra y ticks=all,domain labels=false];
+ \directlua{
+  local x=token.get_macro('pgfplots@extra@xtick')
+  local y=token.get_macro('pgfplots@extra@ytick')
+  local count=0
+  for n in x:gmatch('[^,]+') do count=count+1 end
+  assert(count==2)
+  count=0
+  for n in y:gmatch('[^,]+') do count=count+1 end
+  assert(count==3)
+  luapourbaix_tick_saved_error=tex.error;tex.error=function() end
+  luapourbaix_tick_before_y=y
+ }
+ \addpourbaix[extra y ticks=unknown]{TickNi};
+ \directlua{
+  assert(token.get_macro('pgfplots@extra@ytick')==luapourbaix_tick_before_y)
+  tex.error=luapourbaix_tick_saved_error
+  luapourbaix_tick_saved_error=nil;luapourbaix_tick_before_y=nil
+ }
+\endaxis\endtikzpicture
+\tikzpicture
+\axis[pourbaix/axis,width=8cm,height=6cm,xmin=2,xmax=14,ymin=-2,ymax=2]
+ \addpourbaix[extra x ticks=a,extra y ticks=all]{TickNi};
+ \directlua{
+  assert(not token.get_macro('pgfplots@extra@xtick'):find(','))
+  assert(token.get_macro('pgfplots@extra@ytick')=='')
+ }
+\endaxis\endtikzpicture
+\pgfplotsgetpourbaix{TickNi}\tickafter
+\ifx\tickbefore\tickafter\else\errmessage{Extra ticks changed a diagram handle}\fi

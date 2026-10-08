@@ -1,0 +1,43 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+% Library fallback and source provenance, exercised under all three formats.
+\begingroup
+  \setbox9=\hbox{\pgfplotsset{pourbaix/check handle/.expanded=\savediron}}%
+  \ifdim\wd9=0pt\else\errmessage{Data export emitted horizontal material}\fi
+  \pgfplotsset{pourbaix/declare={
+    name=DatabaseIron,element=Fe,temperature=298.15,
+    species={Fe(s),Fe^2+,Fe^3+,Fe(OH)2(s),Fe(OH)3(s)},
+    concentration=1e-2,boundary convention=equal concentrations,
+    constants={}
+  },pourbaix/check=DatabaseIron}%
+  \pgfplotsgetpourbaix{DatabaseIron}\databaseiron
+  \pgfkeys{/pgfplots/pourbaix/data/\databaseiron/3-temp/standard potential/.get=\databasepotential}%
+  \pgfkeys{/pgfplots/pourbaix/data/\databaseiron/input 2/source id/.get=\databasesource}%
+  \directlua{
+    local d = luapourbaix.get(token.get_macro("databaseiron"))
+    assert(d.thermodynamics.database_consulted)
+    assert(math.abs(tonumber(token.get_macro("databasepotential")) - (.771-.88)/3) < 1e-12)
+    assert(token.get_macro("databasesource") == "wikipedia")
+    assert(d.thermodynamics.phases["Fe(OH)3(s)"] == "amorphous")
+  }%
+  \pgfplotsset{pourbaix/declare={
+    name=DatabaseAl,element=Al,temperature=298.15,
+    species={Al^3+,Al(OH)3(s)},concentration=1e-2,
+    boundary convention=equal concentrations,constants={},
+    species data={species=Al(OH)3(s),thermodynamic phase=amorphous}
+  },pourbaix/check=DatabaseAl}%
+  \pgfplotsgetpourbaix{DatabaseAl}\databaseal
+  \pgfkeys{/pgfplots/pourbaix/data/\databaseal/species 2/log solubility product/.get=\databaselogks}%
+  \directlua{assert(math.abs(tonumber(token.get_macro("databaselogks")) + 31.2) < 1e-12)}%
+  \pgfplotsset{pourbaix/declare={
+    name=DatabaseZn,element=Zn,temperature=298.15,
+    species={Zn^2+,Zn(OH)4^2-},concentration=1e-2,
+    boundary convention=equal concentrations,constants={}
+  },pourbaix/check=DatabaseZn}%
+  \pgfplotsgetpourbaix{DatabaseZn}\databasezn
+  \pgfkeys{/pgfplots/pourbaix/data/\databasezn/species 2/log beta/.get=\databaselogbeta}%
+  \directlua{assert(math.abs(tonumber(token.get_macro("databaselogbeta")) - 14.8) < 1e-12)}%
+\endgroup

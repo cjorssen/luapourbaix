@@ -1,0 +1,12 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+\input pgfplots.tex
+\usepgfplotslibrary{pourbaix}
+\pgfplotsset{pourbaix/declare={
+  element=Fe,species={Fe(s),Fe^2+},constants={},concentration=1e-2,
+  boundary convention=equal concentrations
+}}
+\bye

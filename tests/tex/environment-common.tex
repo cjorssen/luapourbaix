@@ -1,0 +1,119 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+\pgfplotsset{pourbaix/environment setup/.style={
+ pH min=0,pH max=14,build={name=EnvironmentFe,element=Fe,species={Fe(s),Fe^2+},
+ temperature=298.15,concentration=.01,boundary convention=equal concentrations,
+ thermodynamic database=none,
+ constants={standard potential/Fe^2+|Fe(s)={value=-.44}}},
+},
+ environment axis/.style={width=8cm,height=5cm,xmin=0,xmax=14,ymin=-1.2,ymax=1.5},
+ pourbaix/environment collision/.code={\def\EnvironmentWinner{chemical}},
+ environment collision/.code={\def\EnvironmentWinner{axis}}}
+\let\EnvironmentBefore\pgfplotslastpourbaix
+\def\EnvironmentWinner{outer}
+\def\EnvironmentTitle{A preserved macro}
+\par\tikzpicture
+\pourbaix[environment setup,environment axis,environment collision,
+ title={\EnvironmentTitle},axis background/.style={fill=white},
+ plot/domain palette=monochrome]
+ \def\EnvironmentExpected{chemical}
+ \ifx\EnvironmentWinner\EnvironmentExpected\else\errmessage{Wrong environment key priority}\fi
+ \pgfplotsgetpourbaix{EnvironmentFe}\EnvironmentHandle
+ \pgfkeysgetvalue{/pgfplots/pourbaix/data/\EnvironmentHandle/selection/segment count}\EnvironmentState
+ \def\EnvironmentExpected{1}
+ \ifx\EnvironmentState\EnvironmentExpected\else\errmessage{Environment selection was not executed}\fi
+ \addpourbaix{EnvironmentFe};
+ \addpourbaixwater[prepare={diagram=EnvironmentFe},domain labels=false];
+ \addplot[red] coordinates {(0,0) (14,0)};
+\endpourbaix
+\def\EnvironmentExpected{outer}
+\ifx\EnvironmentWinner\EnvironmentExpected\else\errmessage{Environment keys escaped axis scope}\fi
+\ifx\EnvironmentBefore\pgfplotslastpourbaix\else\errmessage{Environment handle escaped axis scope}\fi
+\endtikzpicture\par
+% Optional argument may be omitted; preparation and automatic plotting are not required.
+\tikzpicture\pourbaix\addplot coordinates {(0,0) (1,1)};\endpourbaix\endtikzpicture
+
+% All addressed thermodynamic record types must survive axis option filtering.
+\tikzpicture
+\pourbaix[
+ declare={name=AyaU,element=U,temperature=298.15,concentration=1,
+   species={U(s),U^4+,U^3+,UO2^2+,U(OH)3(s),U(OH)4(s),UO2(OH)2(s)},
+   boundary convention=equal element concentrations,
+   thermodynamic database=none,
+   constants={
+     standard potential/U^4+|U(s)={value=-1.51},
+     standard potential/U^4+|U^3+={value=-.61},
+     standard potential/UO2^2+|U^4+={value=.33},
+     solubility product/U(OH)3(s)={log value=-18.5},
+     solubility product/U(OH)4(s)={log value=-49},
+     equilibrium constant/UO2(OH)2(s)|UO2^2+={log value=4},
+     water ion product={log value=-14}}},
+ check=AyaU,calculate=AyaU,
+ pH min=0,pH max=14,finalize=AyaU,
+ xmin=0,xmax=14,ymin=-2.5,ymax=1.2,width=10cm,height=8cm]
+ \addpourbaix[domain palette=tab10 light,
+   final domain label style={fill=white,inner sep=1pt}]{AyaU};
+ \addpourbaixwater[prepare={diagram=AyaU},domain labels=false];
+\endpourbaix
+\endtikzpicture
+
+% Combined construction is atomic even when TeX continues after an error.
+\begingroup
+\pgfplotsset{pourbaix/pH min=0,pourbaix/pH max=14,
+ pourbaix/build={name=BuildTest,element=Fe,species={Fe(s),Fe^2+},
+ temperature=298.15,concentration=.01,boundary convention=equal concentrations,
+ thermodynamic database=none,
+ constants={standard potential/Fe^2+|Fe(s)={value=-.44}}}}
+\pgfplotsgetpourbaix{BuildTest}\BuildHandle
+\pgfkeys{/pgfplots/pourbaix/data/\BuildHandle/final/1/b/.get=\BuildIntercept}
+\directlua{assert(math.abs(tonumber(token.get_macro('BuildIntercept'))+.49915934968478)<1e-12)}
+\directlua{luapourbaixBuildTest={original=tex.error,count=0};tex.error=function(message)
+ assert(message:find('luapourbaix',1,true));luapourbaixBuildTest.count=luapourbaixBuildTest.count+1 end}
+\pgfplotsset{pourbaix/build={name=BuildTest,element=Fe,species={Fe(s),Fe^2+},
+ temperature=298.15,concentration=.01,boundary convention=equal concentrations,
+ thermodynamic database=none,constants={}}}
+\pgfplotsset{pourbaix/pH max=-1,
+ pourbaix/build={name=BuildTest,element=Fe,species={Fe(s),Fe^2+},
+ temperature=298.15,concentration=.01,boundary convention=equal concentrations,
+ constants={}}}
+\pgfplotsset{pourbaix/build={name=BuildTest,element=Fe,species={Fe(s),Fe^2+},
+ temperature=298.15,concentration=-1,boundary convention=equal concentrations,
+ constants={}}}
+\directlua{tex.error=luapourbaixBuildTest.original;assert(luapourbaixBuildTest.count==3);luapourbaixBuildTest=nil}
+\ifx\BuildHandle\pgfplotslastpourbaix\else\errmessage{Failed build changed last handle}\fi
+\pgfplotsgetpourbaix{BuildTest}\BuildAlias
+\ifx\BuildHandle\BuildAlias\else\errmessage{Failed build changed alias}\fi
+\endgroup
+
+% Scalar transport and water inheritance share the same approximation.
+\begingroup
+\pgfplotsset{pourbaix/pH min=0,pourbaix/pH max=14,
+ pourbaix/build={name=RoundedFe,element=Fe,species={Fe(s),Fe^2+},
+ temperature=298.15,nernst factor=.06,concentration=.01,
+ boundary convention=equal concentrations,constants={}},
+ pourbaix/water/prepare={diagram=RoundedFe}}
+\pgfplotsgetpourbaix{RoundedFe}\RoundedHandle
+\pgfkeys{/pgfplots/pourbaix/data/\RoundedHandle/.cd,
+ nernst factor/.get=\RoundedFactor,final/1/b/.get=\RoundedIntercept}
+\pgfkeys{/pgfplots/pourbaix/water/data/a/.get=\RoundedWater}
+\directlua{
+ assert(tonumber(token.get_macro('RoundedFactor'))==.06)
+ assert(math.abs(tonumber(token.get_macro('RoundedIntercept'))+.5)<1e-12)
+ assert(tonumber(token.get_macro('RoundedWater'))==-.06)
+ luapourbaixNernstTest={original=tex.error,count=0}
+ tex.error=function(message)
+  assert(message:find('Nernst',1,true))
+  luapourbaixNernstTest.count=luapourbaixNernstTest.count+1 end
+}
+\pgfplotsset{pourbaix/water/prepare={diagram=RoundedFe,nernst factor=auto}}
+\pgfplotsset{pourbaix/build={name=RoundedFe,element=Fe,species={Fe(s),Fe^2+},
+ temperature=298.15,nernst factor=0,concentration=.01,
+ boundary convention=equal concentrations,constants={}}}
+\directlua{tex.error=luapourbaixNernstTest.original;assert(luapourbaixNernstTest.count==2);luapourbaixNernstTest=nil}
+\ifx\RoundedHandle\pgfplotslastpourbaix\else\errmessage{Invalid factor changed diagram}\fi
+\pgfkeys{/pgfplots/pourbaix/water/data/a/.get=\RoundedAfter}
+\ifx\RoundedWater\RoundedAfter\else\errmessage{Invalid factor changed water}\fi
+\endgroup

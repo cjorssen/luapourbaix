@@ -1,0 +1,120 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+% Explicit closure, result keys and rollback under all three generic formats.
+\begingroup
+  \pgfplotsgetpourbaix{Fe1E-2}\beforecheck
+  \pgfplotsset{pourbaix/check=Fe1E-2}%
+  \pgfplotsgetpourbaix{Fe1E-2}\checkediron
+  \pgfkeys{/pgfplots/pourbaix/data/\checkediron/3-temp/standard potential/.get=\derivedpotential}%
+  \pgfkeys{/pgfplots/pourbaix/data/\checkediron/a-temp/log K/.get=\derivedlogk}%
+  \directlua{
+    assert(luapourbaix.get(token.get_macro("checkediron")).thermodynamics.checked)
+    assert(luapourbaix.get(token.get_macro("beforecheck")).thermodynamics == nil)
+    assert(math.abs(tonumber(token.get_macro("derivedpotential")) + 0.11/3) < 1e-12)
+    assert(math.abs(tonumber(token.get_macro("derivedlogk")) + 13) < 1e-12)
+  }%
+  \begingroup
+    \pgfkeyssetvalue{/pgfplots/pourbaix/data/\checkediron/a-temp/log K}{99}%
+  \endgroup
+  \pgfkeys{/pgfplots/pourbaix/data/\checkediron/a-temp/log K/.get=\restoredlogk}%
+  \ifx\derivedlogk\restoredlogk\else\errmessage{Thermodynamic keys escaped scope}\fi
+  % A handle check must not replace a current name alias.
+  \pgfplotsset{pourbaix/declare={test iron,name=Fe1E-2,concentration=0.02}}%
+  \pgfplotsgetpourbaix{Fe1E-2}\newiron
+  \pgfplotsset{pourbaix/check handle/.expanded=\beforecheck}%
+  \pgfplotsgetpourbaix{Fe1E-2}\stillnewiron
+  \ifx\newiron\stillnewiron\else\errmessage{Handle check replaced a named alias}\fi
+  \pgfplotsset{pourbaix/declare={test iron,name=Incomplete,thermodynamic database=none,constants={}}}%
+  \pgfplotsgetpourbaix{Incomplete}\incompletehandle
+  \let\lastbeforefailure\pgfplotslastpourbaix
+  \directlua{
+    luapourbaixTest = { original = tex.error, count = 0 }
+    tex.error = function(message)
+      assert(message:find("insufficient thermodynamic data",1,true))
+      assert(message:find("a-temp",1,true))
+      luapourbaixTest.count = luapourbaixTest.count + 1
+    end
+  }%
+  \pgfplotsset{pourbaix/check=Incomplete}%
+  \directlua{
+    tex.error = luapourbaixTest.original
+    assert(luapourbaixTest.count == 1)
+    luapourbaixTest = nil
+  }%
+  \pgfplotsgetpourbaix{Incomplete}\stillincomplete
+  \ifx\stillincomplete\incompletehandle\else\errmessage{Failed check replaced alias}\fi
+  \ifx\pgfplotslastpourbaix\lastbeforefailure\else\errmessage{Failed check replaced last handle}\fi
+  \pgfplotsset{pourbaix/declare={
+    element=Fe,temperature=310,species={Fe^2+,Fe(OH)2(s)},
+    concentration=1e-2,boundary convention=equal concentrations,
+    constants={
+      equilibrium constant={first=Fe^2+,second=Fe(OH)2(s),log value=-12},
+      water ion product={log value=-13.5}
+    }
+  }}%
+  \pgfplotsset{pourbaix/check handle/.expanded=\pgfplotslastpourbaix}%
+  \directlua{
+    local d = luapourbaix.get(token.get_macro("pgfplotslastpourbaix"))
+    assert(math.abs(d.thermodynamics.solubilities["Fe(OH)2(s)"].log_k + 15) < 1e-10)
+  }%
+\endgroup
+\pgfplotsgetpourbaix{Fe1E-2}\restoredaftercheck
+\ifx\savediron\restoredaftercheck\else\errmessage{Check alias escaped its group}\fi
+
+% Explicit chemistry text crosses the bridge unchanged in all formats.
+\begingroup
+\pgfplotsset{pourbaix/declare={name=ExplicitU,element=U,temperature=298.15,
+ species={UO2(OH)2(s),UO2^2+},concentration=1,
+ boundary convention=equal concentrations,thermodynamic database=none,
+ constants={solubility product/UO2(OH)2(s)={
+   reaction={UO2(OH)2(s) = UO2^2+ + 2 HO^-},log value=-24},
+   water ion product={log value=-14}}},pourbaix/check=ExplicitU,
+ pourbaix/calculate=ExplicitU}
+\pgfplotsgetpourbaix{ExplicitU}\explicituranium
+\pgfkeys{/pgfplots/pourbaix/data/\explicituranium/input 1/reaction/.get=\sourceReaction,
+ /pgfplots/pourbaix/data/\explicituranium/input 1/coefficient/OH^-/.get=\hydroxideCoefficient,
+ /pgfplots/pourbaix/data/\explicituranium/species 1/log solubility product/.get=\sourceLogK}
+\sourceReaction\par
+\directlua{
+ local d=luapourbaix.get(token.get_macro("explicituranium"))
+ assert(math.abs(d.boundaries[1].equation.ph-2)<1e-10)
+ assert(tonumber(token.get_macro("hydroxideCoefficient"))==2)
+ assert(tonumber(token.get_macro("sourceLogK"))==-24)
+}
+\pgfplotsset{pourbaix/declare={name=ExplicitU,element=U,temperature=298.15,
+ species={UO2(OH)2(s),UO2^2+},concentration=1,
+ boundary convention=equal concentrations,thermodynamic database=none,
+ constants={equilibrium constant/UO2(OH)2(s)|UO2^2+={
+ reaction={1/2 UO2^2+ + H2O(l) = 1/2 UO2(OH)2(s) + H^+},log value=-2}}},
+ pourbaix/check=ExplicitU}
+\directlua{
+ local d=luapourbaix.get(token.get_macro("pgfplotslastpourbaix"))
+ assert(math.abs(d.boundaries[1].thermodynamics.log_k+4)<1e-10)
+}
+\endgroup
+
+% An explicitly empty reaction must not silently request automatic inference.
+\begingroup
+\let\BeforeEmptyReaction\pgfplotslastpourbaix
+\directlua{
+ luapourbaixEmptyReaction = {original=tex.error,count=0}
+ tex.error=function(message)
+  assert(message:find("reaction requires exactly one",1,true))
+  luapourbaixEmptyReaction.count=luapourbaixEmptyReaction.count+1
+ end
+}
+\pgfpourbaixset{declare={element=Fe,temperature=298.15,
+ species={Fe^2+,Fe(OH)2(s)},concentration=.01,
+ boundary convention=equal concentrations,
+ constants={solubility product/Fe(OH)2(s)={log value=-16,reaction={}}}}}
+\directlua{
+ tex.error=luapourbaixEmptyReaction.original
+ assert(luapourbaixEmptyReaction.count==1)
+ luapourbaixEmptyReaction=nil
+}
+\ifx\pgfplotslastpourbaix\BeforeEmptyReaction\else
+ \errmessage{Empty reaction committed a declaration}\fi
+\endgroup

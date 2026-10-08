@@ -1,0 +1,20 @@
+luapourbaix is a generic PGFPlots library for constructing limiting
+potential-pH (Pourbaix) diagrams of aqueous chemical systems with LuaTeX.
+It works with plain LuaTeX, LuaLaTeX and ConTeXt MkIV.
+
+Declare the species, temperature, total element concentration and boundary
+convention. The library checks and completes thermodynamic data from a sourced
+offline catalogue, calculates boundaries and reconstructs the retained domains,
+including disproportionation. PGF keys expose constants and boundary equations.
+
+Features include water stability overlays, configurable colors and TikZ patterns,
+monochrome diagrams, classification pictures and automatic reports. The manual
+contains fully executable tutorials on iron, iodine and uranium. The model is
+intended for teaching solution chemistry; it is not a full speciation solver.
+
+Author and maintainer: Christophe Jorssen.
+License: LPPL 1.3c or later.
+The package was vibe coded with ChatGPT 6 Astra under the author's direction.
+
+luapourbaix supersedes the unsupported pourbaix project, which was distributed
+only on GitHub and was never on CTAN.

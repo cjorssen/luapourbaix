@@ -1,0 +1,21 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+% Ordinary TikZ pics: no PGFPlots axis is active in the caller.
+\pic (oxidation) {pourbaix oxidation=Fe1E-2};
+\pic[pourbaix/oxidation number format=roman,pourbaix/acidity direction=increasing] (acidity) at (0,-3.5) {pourbaix acidity=Fe1E-2};
+% A named pic exposes anchors with the native TikZ name prefix.
+\draw[blue] (oxidation-species-1.south west)--(oxidation-species-1.north east);
+\pic[pourbaix/handle/.expanded=\savediron,
+  pourbaix/oxidation number format=roman,
+  pourbaix/species/.append style={blue}] (captured) at (8,0) {pourbaix oxidation};
+
+\pgfkeysgetvalue{/tikz/pourbaix/acidity direction/value}\AcidityDirection
+\def\ExpectedDirection{decreasing}
+\ifx\AcidityDirection\ExpectedDirection\else\errmessage{Acidity direction escaped pic scope}\fi
+
+\pgfkeysgetvalue{/tikz/pourbaix/oxidation number format/value}\OxidationFormat
+\def\ExpectedFormat{arabic}
+\ifx\OxidationFormat\ExpectedFormat\else\errmessage{Oxidation format escaped pic scope}\fi

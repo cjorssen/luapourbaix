@@ -1,0 +1,18 @@
+{
+  "name": "luapourbaix",
+  "version": "1.0",
+  "date": "2026-10-08",
+  "status": "github-release",
+  "author": "Christophe Jorssen",
+  "email": "christophe.jorssen@gmail.com",
+  "license": "lppl1.3c",
+  "license_statement": "LPPL version 1.3c or, at your option, any later version",
+  "maintenance_status": "maintained",
+  "repository": "https://github.com/cjorssen/luapourbaix",
+  "repository_ssh": "git@github.com:cjorssen/luapourbaix.git",
+  "ctan_path_proposal": "/macros/luatex/generic/luapourbaix",
+  "summary": "Generic PGFPlots library for limiting potential-pH diagrams",
+  "ai_disclosure": "Vibe coded with ChatGPT 6 Astra under the direction of Christophe Jorssen",
+  "description": "A generic PGFPlots library for limiting potential-pH (Pourbaix) diagrams of aqueous systems with LuaTeX. Supports plain LuaTeX, LuaLaTeX and ConTeXt MkIV. It checks and completes thermodynamic data, calculates boundaries and reconstructs domains including disproportionation. Features include water overlays, TikZ classification pictures, reports, configurable colors and patterns, and PGF key access to constants and equations. Includes a sourced offline teaching catalogue and executable tutorials. Uses a limiting ideal-solution model, not full aqueous speciation.",
+  "ctan_note": "First CTAN submission (update=false). Please install under /macros/luatex/generic/luapourbaix: a generic library requiring LuaTeX. No TDS zip is supplied, following maintainer advice. Runtime files in tex/ install together under tex/generic/luapourbaix/. They are handwritten sources, not derived from dtx files. The earlier GitHub-only pourbaix project has never been distributed on CTAN. Load via the PGFPlots library name pourbaix. Author and maintainer: Christophe Jorssen. AI assistance is disclosed in the README and manual."
+}

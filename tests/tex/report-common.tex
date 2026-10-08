@@ -1,0 +1,27 @@
+% Copyright 2026 Christophe Jorssen <christophe.jorssen@gmail.com>.
+% This file is part of luapourbaix.
+% Distributed under the LPPL 1.3c or, at your option, any later version.
+% Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
+
+% Reports must be read-only and use the same captured snapshot in every block.
+\foreach \ReportElement/\ReportSpecies in {
+ Fe/{Fe(s),Fe^2+,Fe^3+,Fe(OH)2(s),Fe(OH)3(s)},
+ Cu/{Cu(s),Cu^+,Cu^2+},
+ Zn/{Zn(s),Zn^2+,Zn(OH)2(s),Zn(OH)4^2-},
+ Cr/{Cr(s),Cr^2+,Cr^3+,Cr2O7^2-}}{
+  \pgfplotsset{pourbaix/declare={name=ReportTest,
+    element/.expanded=\ReportElement,species/.expanded=\ReportSpecies,
+    temperature=298.15,concentration=.01,
+    boundary convention=equal element concentrations,constants={}},
+    pourbaix/check=ReportTest,pourbaix/calculate=ReportTest,
+    pourbaix/pH min=0,pourbaix/pH max=14,pourbaix/finalize=ReportTest}
+  \pgfplotsgetpourbaix{ReportTest}\ReportBefore
+  \let\ReportLast\pgfplotslastpourbaix
+  \pgfplotspourbaixreport[axis options={xmin=0,xmax=14,ymin=-1.5,ymax=1.5,
+    width=9cm,height=6cm},text width=9cm]{ReportTest}
+  \pgfplotsgetpourbaix{ReportTest}\ReportAfter
+  \ifx\ReportBefore\ReportAfter\else\errmessage{Report changed diagram alias}\fi
+  \ifx\ReportLast\pgfplotslastpourbaix\else\errmessage{Report changed last handle}\fi
+  \pgfplotspourbaixreport[handle/.expanded=\ReportBefore,
+    sections={header,inputs},text width=9cm]{}
+}
