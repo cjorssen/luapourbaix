@@ -30,18 +30,14 @@
 % Only constant source crosses this bootstrap boundary. No user interpolation.
 % ConTeXt uses its resolver; plain and LaTeX use Kpathsea.
 \directlua{
-  local name = "luapourbaix-tex.lua"
-  local path
-  if resolvers and resolvers.findfile then
-    path = resolvers.findfile(name)
-  end
-  if not path or path == "" then
-    if kpse and kpse.find_file then
-      path = kpse.find_file(name, "tex")
-    end
-  end
-  assert(path and not (path == ""), "luapourbaix: cannot locate bridge")
-  luapourbaix = luapourbaix or dofile(path)
+  local filename = status.filename
+  local directory = filename and filename:match("^(.*[/])")
+  assert(directory, "luapourbaix: cannot identify selected TeX installation")
+  local path = directory .. "lua/luapourbaix-tex.lua"
+  local file = io.open(path, "rb")
+  assert(file, "luapourbaix: missing bridge in selected installation: " .. path)
+  file:close()
+  luapourbaix = luapourbaix or assert(loadfile(path))(directory .. "lua/")
 }
 
 % Each declaration is a transaction. Scratch macros are local; the final
@@ -483,11 +479,13 @@
 \def\luapourbaixcustomdomainfor#1#2{%
   \def\luapourbaixpathspecies{#1}%
   \def\luapourbaixcustomspecies{#1}\def\luapourbaixcustomat{}%
+  \def\luapourbaixcustombehavior{auto}%
   \def\luapourbaixcustomstyle{}\def\luapourbaixcustomnodestyle{}%
   \def\luapourbaixcustomtext{}\def\luapourbaixcustomhastext{0}%
   \pgfqkeys{/pgfplots/pourbaix/domain}{#2}%
   \edef\luapourbaixdomaincount{\the\numexpr\luapourbaixdomaincount+1\relax}%
   \expandafter\let\csname luapourbaixdomainspecies\luapourbaixdomaincount\endcsname\luapourbaixcustomspecies
+  \expandafter\let\csname luapourbaixdomainbehavior\luapourbaixdomaincount\endcsname\luapourbaixcustombehavior
   \expandafter\let\csname luapourbaixdomainat\luapourbaixdomaincount\endcsname\luapourbaixcustomat
   \expandafter\let\csname luapourbaixdomainstyle\luapourbaixdomaincount\endcsname\luapourbaixcustomstyle
   \expandafter\let\csname luapourbaixdomainnodestyle\luapourbaixdomaincount\endcsname\luapourbaixcustomnodestyle
@@ -588,6 +586,15 @@
     \ifx\luapourbaixplotcoloring\luapourbaixpatternmode
       \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain patterns}\luapourbaixplotpalette
     \fi
+    \def\luapourbaixbehaviormode{behavior}%
+    \pgfkeysgetvalue{/pgfplots/pourbaix/plot/behavior distinction}\luapourbaixplotbehaviordistinction
+    \ifx\luapourbaixplotcoloring\luapourbaixbehaviormode
+      \ifx\luapourbaixplotbehaviordistinction\luapourbaixpatternmode
+        \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain patterns}\luapourbaixplotpalette
+      \else
+        \pgfkeysgetvalue{/pgfplots/pourbaix/plot/behavior opacities}\luapourbaixplotpalette
+      \fi
+    \fi
     \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain label mode}\luapourbaixplotlabelmode
     \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain label placement}\luapourbaixplotlabelplacement
     \pgfkeysgetvalue{/pgfplots/pourbaix/plot/letter species list}\luapourbaixplotletterspecies
@@ -622,15 +629,24 @@
 }
 \def\luapourbaixplotappearance#1#2{%
   \def\luapourbaixcoloroptions{}%
+  \def\luapourbaixbehavioroptions{}%
   \ifnum#1>0
     \def\luapourbaixcolorindex{0}%
     \pgfutil@for\luapourbaixcolor:=\luapourbaixplotpalette\do{%
       \edef\luapourbaixcolorindex{\the\numexpr\luapourbaixcolorindex+1\relax}%
       \ifnum\luapourbaixcolorindex=#1
+        \ifx\luapourbaixplotcoloring\luapourbaixbehaviormode
+          \ifx\luapourbaixplotbehaviordistinction\luapourbaixpatternmode
+            \edef\luapourbaixcoloroptions{pattern={\pgfutil@unexpanded\expandafter{\luapourbaixcolor}},pattern color=black}%
+          \else
+            \edef\luapourbaixcoloroptions{opacity=\luapourbaixcolor}%
+          \fi
+        \else
         \ifx\luapourbaixplotcoloring\luapourbaixpatternmode
           \edef\luapourbaixcoloroptions{fill=none,pattern={\pgfutil@unexpanded\expandafter{\luapourbaixcolor}},pattern color=black}%
         \else
           \edef\luapourbaixcoloroptions{fill={\pgfutil@unexpanded\expandafter{\luapourbaixcolor}}}%
+        \fi
         \fi
       \fi}%
   \fi
@@ -644,6 +660,13 @@
     \expandafter\let\expandafter\luapourbaixdomainlabel\csname luapourbaixdomaintext#2\endcsname
   \fi
 }
+% Category names are validated Lua enums; styles stay unexpanded TeX tokens.
+\def\luapourbaixplotbehavior#1{%
+  \pgfkeysgetvalue{/pgfplots/pourbaix/plot/behavior/#1/style}\luapourbaixbehavioroptions
+  \edef\luapourbaixbehavioroptions{%
+    \pgfutil@unexpanded\expandafter{\luapourbaixbehavioroptions},%
+    \pgfutil@unexpanded\expandafter{\luapourbaixcoloroptions}}%
+}
 \def\luapourbaixplotfill#1#2#3{%
   \pgfkeysgetvalue{/pgfplots/pourbaix/plot/#1 domain style}\luapourbaixplotstyle
   \pgfkeysgetvalue{/pgfplots/pourbaix/plot/domain style}\luapourbaixcommondomainstyle
@@ -652,6 +675,7 @@
       \pgfutil@unexpanded\expandafter{\luapourbaixplotstyle},
       \pgfutil@unexpanded\expandafter{\luapourbaixcoloroptions},
       \pgfutil@unexpanded\expandafter{\luapourbaixcommondomainstyle},
+      \pgfutil@unexpanded\expandafter{\luapourbaixbehavioroptions},
       /pgfplots/pourbaix/species #2/.try,
       \pgfutil@unexpanded\expandafter{\luapourbaixdomainoptions}] coordinates {#3} --cycle;%
   }%
@@ -710,6 +734,8 @@
   pourbaix/domain/label at/.value required,
   pourbaix/domain/label style/.store in=\luapourbaixcustomnodestyle,
   pourbaix/domain/label style/.value required,
+  pourbaix/domain/behavior/.store in=\luapourbaixcustombehavior,
+  pourbaix/domain/behavior/.value required,
   pourbaix/domain/style/.store in=\luapourbaixcustomstyle,
   pourbaix/domain/style/.value required,
   pourbaix/plot/domain/.code={\luapourbaixcustomdomain{#1}},
@@ -737,6 +763,28 @@
   pourbaix/plot/domain palette/patterns/.style={/pgfplots/pourbaix/plot/domain coloring=patterns,/pgfplots/pourbaix/plot/domain patterns={north east lines,north west lines,dots,horizontal lines,vertical lines,crosshatch}},
   pourbaix/plot/domain palette/hatching/.style={/pgfplots/pourbaix/plot/domain coloring=patterns,/pgfplots/pourbaix/plot/domain patterns={north east lines,north west lines,horizontal lines,vertical lines,crosshatch}},
   pourbaix/plot/domain palette/monochrome/.style={/pgfplots/pourbaix/plot/domain palette=patterns},
+  pourbaix/plot/behavior distinction/.initial=opacity,
+  pourbaix/plot/behavior distinction/.value required,
+  pourbaix/plot/behavior opacities/.initial={0.35,0.5,0.65,0.8,1},
+  pourbaix/plot/behavior opacities/.value required,
+  pourbaix/plot/behavior/immunity/.code={\pgfqkeys{/pgfplots/pourbaix/plot/behavior/immunity}{#1}},
+  pourbaix/plot/behavior/immunity/.value required,
+  pourbaix/plot/behavior/immunity/style/.initial={fill=blue!35},
+  pourbaix/plot/behavior/immunity/style/.value required,
+  pourbaix/plot/behavior/corrosion/.code={\pgfqkeys{/pgfplots/pourbaix/plot/behavior/corrosion}{#1}},
+  pourbaix/plot/behavior/corrosion/.value required,
+  pourbaix/plot/behavior/corrosion/style/.initial={fill=orange!50},
+  pourbaix/plot/behavior/corrosion/style/.value required,
+  pourbaix/plot/behavior/passivation/.code={\pgfqkeys{/pgfplots/pourbaix/plot/behavior/passivation}{#1}},
+  pourbaix/plot/behavior/passivation/.value required,
+  pourbaix/plot/behavior/passivation/style/.initial={fill=green!40},
+  pourbaix/plot/behavior/passivation/style/.value required,
+  pourbaix/plot/behavior/unclassified/.code={\pgfqkeys{/pgfplots/pourbaix/plot/behavior/unclassified}{#1}},
+  pourbaix/plot/behavior/unclassified/.value required,
+  pourbaix/plot/behavior/unclassified/style/.initial={fill=gray!40},
+  pourbaix/plot/behavior/unclassified/style/.value required,
+  pourbaix/plot/domain palette/behavior/.style={domain coloring=behavior,behavior distinction=opacity,behavior/immunity={style={fill=blue!35}},behavior/corrosion={style={fill=orange!50}},behavior/passivation={style={fill=green!40}},behavior/unclassified={style={fill=gray!40}}},
+  pourbaix/plot/domain palette/behavior monochrome/.style={domain coloring=behavior,behavior distinction=patterns,behavior/immunity={style={fill=white}},behavior/corrosion={style={fill=white}},behavior/passivation={style={fill=white}},behavior/unclassified={style={fill=white}}},
   pourbaix/plot/domain style/.initial={},
   pourbaix/plot/domain style/.value required,
   pourbaix/plot/domain label mode/.initial=species,

@@ -8,15 +8,15 @@ usable with **plain LuaTeX, LuaLaTeX and ConTeXt MkIV**.
 **Repository:** <https://github.com/cjorssen/luapourbaix>  
 **License:** [LPPL 1.3c or later](COPYING.md), maintenance status `maintained`.
 
-**AI disclosure:** this package was **“vibe coded” with ChatGPT 6 Astra**, under
+**AI disclosure:** this package was **“vibe-coded” with OpenAI Codex and the Astra-6 model**, under
 Christophe Jorssen's direction. Christophe Jorssen is the author and maintainer.
 See [AUTHORS.md](AUTHORS.md). This disclosure is not a scientific validation of
 the thermodynamic data.
 
-Version **1.0** (2026-10-08).
+Version **1.1** (2026-11-27).
 
-[Download the manual](https://github.com/cjorssen/luapourbaix/releases/download/v1.0/luapourbaix-manual.pdf)
-· [Release and source archive](https://github.com/cjorssen/luapourbaix/releases/tag/v1.0)
+[Download the manual](https://github.com/cjorssen/luapourbaix/releases/download/v1.1/luapourbaix-manual.pdf)
+· [Release and source archive](https://github.com/cjorssen/luapourbaix/releases/tag/v1.1)
 
 ## Replaces the unsupported pourbaix package
 
@@ -53,6 +53,11 @@ Named domain palettes include Matplotlib/Tableau `tab10`, `tab10 light`,
 `grayscale`, and TikZ `patterns`/`hatching`; `monochrome` selects black patterns.
 For example, use `\addpourbaix[domain palette=monochrome]{Fe};`.
 Automatic palette slots distinguish adjacent retained domains.
+Use `domain palette=behavior` for immunity/corrosion/possible-passivation colors,
+or `behavior monochrome` for patterns. Category styles use
+`behavior/passivation={style={...}}`; per-species overrides use
+`domain/Fe(OH)2(s)={behavior=unclassified}`. Neutral dissolved species remain
+unclassified, and a solid domain does not establish protective passivation.
 
 The manual opens with three worked tutorials: Maxime prepares an iron worksheet,
 Sophie illustrates iodine disproportionation and boundary conventions, and Aya
@@ -83,10 +88,10 @@ Runtime requirements are LuaTeX, PGF/TikZ and PGFPlots. No runtime network acces
 shell escape, Python or external executable is needed. Other engines have not
 been qualified merely because they support Lua.
 
-Copy every runtime file to `tex/generic/luapourbaix/` in your personal TeX tree
-and refresh its filename database if necessary. In the repository these files
-already occupy that path; in the CTAN source archive they are under `tex/`.
-The Lua files must stay alongside `pgflibrarypgfplots.pourbaix.code.tex`.
+In the public archive, runtime files live in `tex/`, with Lua modules under
+`tex/lua/`. Copy the **contents** of that `tex/` directory into
+`TEXMFHOME/tex/luatex/luapourbaix/`, preserving the `lua/` subdirectory.
+Refresh the filename database if necessary.
 
 Load the library after PGFPlots:
 
@@ -131,8 +136,8 @@ is explicit; data are not extrapolated to other temperatures.
 ## Documentation and scientific scope
 
 The [manual source](doc/luapourbaix-manual.tex) contains all examples inline.
-The distributed PDF is `doc/luapourbaix-manual.pdf`; local builds write
-`build/manual/luapourbaix-manual.pdf`. Its six parts cover getting started, the
+The distributed PDF is `doc/luapourbaix-manual.pdf`.
+Its six parts cover getting started, the
 user reference, scientific algorithms, worked examples, thermodynamic provenance
 and technical details. Examples include Fe, Cu, Zn, Al, Ag, Pb, Ni, Cr, Mn and Cl.
 
@@ -140,26 +145,35 @@ This is a **limiting ideal-solution construction**, not full aqueous speciation.
 Only declared species have domains. The explicit concentration convention,
 solid phase and selected species set affect the result. Mixed source standard
 states and highly alkaline teaching examples have documented limitations;
-[the scientific audit](doc/scientific-audit.md) records verified source
+[the scientific qualifications in the manual](doc/luapourbaix-manual.pdf) records verified source
 transformations, the copper cycle discrepancy and remaining reference-quality
 limitations. [Source notes](doc/SOURCES.md) identify the underlying compilations.
 
-## Building and preparing distributions
+An [agent usage guide](skills/luapourbaix-diagrams/SKILL.md) provides tested
+examples and guidance for AI-assisted document preparation.
 
-Building and testing additionally need Python 3.8+, Make, MakeIndex and a TeX distribution
-with all three formats and PGF's manual tools. Nothing is installed globally.
+## Building the manual
 
-```sh
-make doctor   # inspect local tools
-make check    # Lua, three formats, negative tests, manual and index
-make dist     # run checks and create the CTAN source archive
-make clean    # remove the generated build tree only
-```
-
-Archives and their SHA-256 checksums are written under `build/dist/`. The source
-archive includes handwritten runtime sources, the PDF and source manual, tests,
-build scripts and license notices; it excludes caches, logs and working notes.
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [the release procedure](doc/releasing.md).
+The manual source contains all examples inline. From a writable build directory,
+compile it with LuaLaTeX, run MakeIndex on `luapourbaix-manual.idx`, then rerun
+LuaLaTeX until references and the index settle. The documentation requires
+`fontspec`, the PGF manual tools and their matching PGF installation. It does not
+require shell escape or externalized example figures.
 
 Copyright 2026 Christophe Jorssen. See [COPYING.md](COPYING.md),
 [LICENSE](LICENSE) and [MANIFEST.md](MANIFEST.md).
+
+## Installation layout
+
+LuaTeX is required; the shared implementation supports plain LuaTeX, LuaLaTeX
+and ConTeXt MkIV (LuaTeX). Runtime files and format loaders are installed in
+`tex/luatex/luapourbaix/`, with Lua modules in its `lua/` subdirectory. Install the public archive as described above; refresh the filename database /
+MkIV resolver cache as required. The public archive places documentation in
+`doc/`, rather than repeating the installed TDS hierarchy.
+
+The recommended CTAN archive category is `/macros/luatex/generic/luapourbaix`. TeX Live's
+installation layout is separate and is controlled by its package import rules.
+
+The runtime has been tested in copied, isolated installations with LuaTeX and
+LuaHBTeX 1.24.0 (TeX Live 2026), including ConTeXt MkIV with LuaTeX. This does
+not certify other engines or platforms.

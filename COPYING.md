@@ -13,9 +13,7 @@ This work has the LPPL maintenance status **maintained**.
 The Current Maintainer is **Christophe Jorssen**.
 
 The work consists of the distributable source files listed in `MANIFEST.md`
-and the derived documentation file `luapourbaix-manual.pdf`. The maintainer
-notes `AGENTS.md` and `doc/project-contract.md` are retained in the repository
-but are not required for the distribution or its build.
+and the derived documentation file `luapourbaix-manual.pdf`. Only the public distribution is described by this manifest.
 
 For this generic library, the Base Interpreter comprises a LuaTeX-compatible
 TeX engine, its supported plain/LaTeX/ConTeXt format, PGF/TikZ and PGFPlots.
@@ -27,4 +25,4 @@ upstream database files and articles are not bundled or relicensed. The original
 catalogue code records selected numerical facts, reactions and provenance.
 The package license does not certify the consistency of those scientific data.
 
-See `AUTHORS.md` for the explicit ChatGPT 6 Astra AI disclosure.
+See `AUTHORS.md` for the explicit OpenAI Codex and the Astra-6 model AI disclosure.

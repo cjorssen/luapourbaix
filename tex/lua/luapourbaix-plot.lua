@@ -218,27 +218,59 @@ local function species_index(d,id)
   if not s then fail("unknown domain species: "..tostring(id)) end
   return s.index
 end
+-- A presentation convention only: a solid compound is not proof of a film.
+function M.behavior(species,element)
+  if species.phase=="aqueous" then
+    return species.charge~=0 and "corrosion" or "unclassified"
+  end
+  if species.phase=="solid" then
+    local elemental=true
+    for atom in pairs(species.composition) do
+      if atom~=element then elemental=false end
+    end
+    if elemental and species.oxidation_number==0 then return "immunity" end
+    return "passivation"
+  end
+  return "unclassified"
+end
+local behaviors={auto=true,immunity=true,corrosion=true,passivation=true,unclassified=true}
 function M.appearance(d,options)
   local mode=options.coloring or "adjacent"
-  if mode~="adjacent" and mode~="patterns" and mode~="phase" and mode~="none" then fail("unknown domain coloring") end
+  if mode~="adjacent" and mode~="patterns" and mode~="phase" and mode~="none" and mode~="behavior" then fail("unknown domain coloring") end
   local colors={}
-  if (mode=="adjacent" or mode=="patterns") and enabled(options,"domain_fills",true) then
-    local palette=options.palette or (mode=="patterns"
+  if mode=="behavior" and options.behavior_distinction~=nil and
+    options.behavior_distinction~="opacity" and options.behavior_distinction~="patterns" then
+    fail("unknown behavior distinction")
+  end
+  if (mode=="adjacent" or mode=="patterns" or mode=="behavior") and enabled(options,"domain_fills",true) then
+    local palette=options.palette or (mode=="behavior" and options.behavior_distinction~="patterns" and "0.35,0.5,0.65,0.8,1") or ((mode=="patterns" or mode=="behavior")
       and "north east lines,north west lines,dots,horizontal lines,vertical lines,crosshatch"
       or "blue!15,orange!20,green!15,violet!15,yellow!25,red!15")
     local n,seen=0,{}
     for c in (palette..","):gmatch("(.-),") do
       c=c:match("^%s*(.-)%s*$")
       if c=="" or seen[c] then fail("domain colors or patterns must be nonempty and distinct") end
+      if mode=="behavior" and (options.behavior_distinction or "opacity")=="opacity" then
+        local opacity=tonumber(c)
+        if not opacity or opacity~=opacity or opacity<=0 or opacity>1 then
+          fail("behavior opacities must be finite numbers in (0,1]")
+        end
+        if seen[opacity] then fail("behavior opacities must be distinct") end
+        seen[opacity]=true
+      end
       seen[c]=true;n=n+1
     end
     colors=M.colors(d,n)
   end
-  local records,labels={},{}
+  local records,labels,classification={},{},{}
+  for i,species in ipairs(d.species) do classification[i]=M.behavior(species,d.element) end
   for index,r in ipairs(options.domains or {}) do
     local i=species_index(d,r.species)
     if records[i] then fail("duplicate domain customization for "..r.species) end
     records[i]={index=index}
+    local behavior=r.behavior or "auto"
+    if not behaviors[behavior] then fail("unknown domain behavior: "..tostring(behavior)) end
+    if behavior~="auto" then classification[i]=behavior end
     if r.at and r.at~="" then
       local x,y=r.at:match("^%s*([^,]+),([^,]+)%s*$")
       if not x then fail("domain label at requires pH,potential (two decimal numbers)") end
@@ -270,7 +302,7 @@ function M.appearance(d,options)
     if boundary_records[id] then fail("duplicate boundary customization: "..id) end
     boundary_records[id]=i
   end
-  return {colors=colors,records=records,labels=labels,coloring=mode,boundary_records=boundary_records}
+  return {behaviors=classification,colors=colors,records=records,labels=labels,coloring=mode,boundary_records=boundary_records}
 end
 
 function M.render(diagram,options)
@@ -289,6 +321,9 @@ function M.render(diagram,options)
     for _,r in ipairs(items) do
       local record=appearance.records[r.species]
       emit("\\luapourbaixplotappearance{"..(kind and 0 or (appearance.colors[r.species] or 0)).."}{"..(record and record.index or 0).."}")
+      if not kind and appearance.coloring=="behavior" then
+        emit("\\luapourbaixplotbehavior{"..appearance.behaviors[r.species].."}")
+      end
       emit("\\luapourbaixplotfill{"..(kind or r.kind).."}{"..r.species.."}{"..coordinates(r.points).."}")
     end
   end

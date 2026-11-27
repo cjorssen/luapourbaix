@@ -14,6 +14,7 @@
 \usepackage[hyperindex=false]{hyperref}
 \usepackage{pgfmanual}
 \input{pgfmanual-en-macros.tex}
+
 \makeindex
 \tracinglostchars=3
 \hypersetup{pdftitle={The luapourbaix library},pdfauthor={Christophe Jorssen}}
@@ -21,7 +22,7 @@
   \large Limiting Potential--pH Diagrams with PGFPlots}
 \author{Christophe Jorssen\\
  \href{mailto:christophe.jorssen@gmail.com}{\texttt{christophe.jorssen@gmail.com}}}
-\date{Version 1.0 --- 2026-10-08}
+\date{Version 1.1 --- 2026-11-27}
 
 \begin{document}
 \maketitle
@@ -36,8 +37,8 @@ model described in this manual; it is not a full aqueous speciation solver.
 \end{abstract}
 \begin{center}
 \fbox{\begin{minipage}{.9\linewidth}
-\textbf{AI assistance.} This package was ``vibe coded'' with the
-assistance of \textbf{ChatGPT 6 Astra}, under the direction of Christophe Jorssen.
+\textbf{AI assistance.} This package was ``vibe-coded'' with the
+assistance of \textbf{OpenAI Codex and the Astra-6 model}, under the direction of Christophe Jorssen.
 The author and current maintainer is Christophe Jorssen. Source provenance and
 the limitations of the thermodynamic model are documented in this manual.
 \end{minipage}}
@@ -74,18 +75,17 @@ family and the \texttt{pourbaix} axis environment are part of luapourbaix;
 they do not imply continued support for the legacy package.
 
 \subsection{Files, dependencies and loading}
-The runtime files must be on the engine's search path. The repository uses
-\path{tex/generic/luapourbaix/}; the CTAN source archive places the same files
-in \texttt{tex/}. Copy them to \path{tex/generic/luapourbaix/} in a personal
-TDS tree. Refresh the
-TeX filename database if required by that tree. The generic Lua modules must
-remain alongside the PGFPlots library loader.
+The runtime files must be on the engine's search path. The public archive uses
+\path{tex/} for TeX files and \path{tex/lua/} for Lua modules.
+Copy the contents of its \path{tex/} directory into
+\path{TEXMFHOME/tex/luatex/luapourbaix/}, preserving the \texttt{lua/}
+subdirectory. The public manual and previews are under \path{doc/}.
+Refresh the TeX filename database if required by that tree.
 
 Only LuaTeX, PGF/TikZ and PGFPlots are runtime dependencies. No network access,
-external executable or shell escape is used by the library. Building and testing
-the sources additionally uses Python~3.8 or later, Make, MakeIndex and the TeX
-distribution's PGF documentation tools. The build runner sets local search paths
-and caches without altering the global TeX installation.
+external executable or shell escape is used by the library. Building the manual additionally requires LuaLaTeX, MakeIndex and the TeX
+distribution's matching PGF documentation tools. No Python interpreter is
+needed to install the library or compile its documentation.
 
 For LuaLaTeX, load the library after PGFPlots:
 \begin{verbatim}
@@ -377,6 +377,68 @@ be inconsistent with the rounded one; the normal consistency error still
 applies. Rebuild the diagram to change this approximation; already calculated
 snapshots retain their own factor. Use \texttt{nernst factor=auto} to return to
 the temperature-derived value.
+
+\subsection{Reading immunity, corrosion and possible passivation}
+Maxime now wants a second version of the worksheet, organized by corrosion
+behavior. He keeps the species labels so that students can connect each
+behavior to its chemical form. The library classifies Fe(s) as immunity,
+Fe$^{2+}$ and Fe$^{3+}$ as corrosion, and the two hydroxide solids as possible
+passivation. No new thermodynamic calculation is needed to change the fills.
+
+\begin{codeexample}[width=0pt]
+\pgfpourbaixset{pH min=0,pH max=14,
+ build={name=MaximeBehavior,element=Fe,temperature=298.15,
+  concentration=.01,
+  species={Fe(s),Fe^2+,Fe^3+,Fe(OH)2(s),Fe(OH)3(s)},
+  boundary convention=equal element concentrations,constants={}}}
+\foreach \palette/\caption in
+ {behavior/Color,behavior monochrome/Monochrome}{
+ \begin{tikzpicture}
+ \begin{axis}[pourbaix/axis,title={\caption},
+  xmin=0,xmax=14,ymin=-1.2,ymax=1.5,width=7.4cm,height=6.8cm]
+  \addpourbaix[domain palette=\palette,
+    final domain label style={font=\scriptsize,fill=white,inner sep=1pt}
+  ]{MaximeBehavior};
+ \end{axis}
+ \end{tikzpicture}
+}
+\end{codeexample}
+
+In the color view, blue identifies immunity, orange corrosion, and green possible
+passivation. Adjacent species receive different opacities, including Fe$^{2+}$
+and Fe$^{3+}$ within the same orange family. The monochrome preset assigns
+adjacency-safe black patterns; patterns distinguish adjacent species, not one
+universal pattern per behavior. Both views retain the same boundaries and names.
+
+For a colored figure with hatching only on the possible-passivation domains,
+Maxime can customize a category. Ordinary TikZ fill and pattern options remain
+available, and the automatic opacity variants distinguish neighboring domains.
+
+\begin{codeexample}[width=0pt]
+\begin{tikzpicture}
+\begin{pourbaix}[pH min=0,pH max=14,
+ build={name=MaximeHatching,element=Fe,temperature=298.15,
+  concentration=.01,
+  species={Fe(s),Fe^2+,Fe^3+,Fe(OH)2(s),Fe(OH)3(s)},
+  boundary convention=equal element concentrations,constants={}},
+ xmin=0,xmax=14,ymin=-1.2,ymax=1.5,width=10cm,height=7cm]
+ \addpourbaix[domain coloring=behavior,
+  behavior/immunity={style={fill=blue!35}},
+  behavior/corrosion={style={fill=orange!50}},
+  behavior/passivation={style={fill=green!30,
+    pattern=north east lines,pattern color=green!50!black}},
+  final domain label style={font=\scriptsize,fill=white,inner sep=1pt}
+ ]{MaximeHatching};
+\end{pourbaix}
+\end{tikzpicture}
+\end{codeexample}
+
+These labels are a teaching interpretation of the selected species. The existence
+of a solid corrosion product does not prove formation of an adherent, protective
+film or determine a corrosion rate. Neutral dissolved species remain
+\texttt{unclassified}; they are not silently treated as passive solids.
+Explicit assignments use \texttt{domain/\meta{species}=\{behavior=\meta{category}\}}.
+Details and precedence are given in Section~\ref{sec:behavior-fills}.
 
 \section{Tutorial: Sophie Makes Iodine Disproportionate}
 \label{sec:tutorial-iodine}
@@ -856,7 +918,7 @@ A report reuses the selected snapshot; it does not change the diagram or run a
 new chemical calculation. Use the command in ordinary document flow, outside
 \texttt{tikzpicture} and \texttt{axis}, so pages can break between its cards.
 
-\begin{verbatim}
+\begin{codeexample}[setup code]
 \begingroup
 \pgfpourbaixset{pH min=0,pH max=14,
  build={name=AyaNotes,element=U,temperature=298.15,concentration=1,
@@ -879,7 +941,7 @@ new chemical calculation. Use the command in ordinary document flow, outside
    final domain label style={fill=white,inner sep=1pt}}
 ]{AyaNotes}
 \endgroup
-\end{verbatim}
+\end{codeexample}
 
 Here are Aya's generated notes. Input log constants are normalized reaction
 constants, not all solubility products. Each boundary card links its equation
@@ -888,28 +950,6 @@ $E^\circ(\mathrm{U^{3+}/U})=-1.81$ V without treating potentials as unweighted
 additive quantities. The report includes inactive candidates for reference;
 only retained boundaries appear as solid lines in the plot.
 
-\begingroup
-\pgfpourbaixset{pH min=0,pH max=14,
- build={name=AyaNotes,element=U,temperature=298.15,concentration=1,
-  species={U(s),U^4+,U^3+,UO2^2+,U(OH)3(s),U(OH)4(s),UO2(OH)2(s)},
-  boundary convention=equal element concentrations,
-  thermodynamic database=none,constants={
-   standard potential/U^4+|U(s)={value=-1.51},
-   standard potential/U^4+|U^3+={value=-.61},
-   standard potential/UO2^2+|U^4+={value=.33},
-   solubility product/U(OH)3(s)={log value=-18.5},
-   solubility product/U(OH)4(s)={log value=-49},
-   equilibrium constant/UO2(OH)2(s)|UO2^2+={log value=4},
-   water ion product={log value=-14}}}}
-\pgfplotspourbaixreport[
- sections={header,plot,events,inputs,constants,boundaries},
- text width=12cm,
- axis options={xmin=0,xmax=14,ymin=-2.5,ymax=1.2},
- plot options={show removed=false,domain palette=tab10 light,
-   boundary/b={label style={right,xshift=2pt}},
-   final domain label style={fill=white,inner sep=1pt}}
-]{AyaNotes}
-\endgroup
 
 \section{Reading the Reference Parts}
 
@@ -919,7 +959,7 @@ commands by task. Part~\ref{part:science} explains the limiting chemical model,
 thermodynamic checking and selection algorithms. Part~\ref{part:examples}
 contains complete diagrams and composed reports. Part~\ref{part:data} describes
 the offline catalogue, standard states, solid phases and provenance.
-Part~\ref{part:technical} covers the TeX/Lua boundary, diagnostics and local builds.
+Part~\ref{part:technical} covers the TeX/Lua boundary, diagnostics and documentation compilation.
 
 \subsection{Scope and limitations}
 A diagram describes the selected species only. It does not silently add missing
@@ -954,6 +994,19 @@ The \texttt{pourbaix} environment combines chemical keys with an axis: its
 unknown top-level keys are searched in the PGFPlots family. Explicit absolute
 paths disambiguate collisions. Neither the setters nor the environment draw a
 diagram implicitly. Normal PGF styles, handlers and TeX grouping apply.
+
+
+\begin{command}{\pgfplotsaddpourbaix\oarg{options}\marg{name};}
+Compatibility name for \verb|\addpourbaix|. It accepts exactly the same plot
+keys, TeX scope and mandatory semicolon; it submits the same deferred plots.
+Prefer the shorter name in new documents. For example,
+\verb|\pgfplotsaddpourbaix{Fe};| is equivalent to \verb|\addpourbaix{Fe};|.
+\end{command}
+\begin{command}{\pgfplotsaddpourbaixwater\oarg{options};}
+Compatibility name for \verb|\addpourbaixwater|, with the same water keys,
+TeX scope and mandatory semicolon. Supply the same \texttt{prepare} options
+as for the shorter command; both names add identical water boundaries.
+\end{command}
 
 \begin{command}{\pgfpourbaixset\marg{keys}}
 Processes a key list in the \texttt{/pgfplots/pourbaix} family.
@@ -1106,7 +1159,7 @@ prints $s$. Invalid input preserves existing diagrams and aliases.
 Required positive finite absolute temperature in K, without a default. It belongs
 to the diagram snapshot. Celsius suffixes and unit expressions are not accepted.
 Input constants are taken to apply at this temperature; no extrapolation is
-performed. Declarations written for version 0.1 must add this key.
+performed.
 \end{key}
 \begin{key}{/pgfplots/pourbaix/diagram/boundary convention=\meta{choice}}
 Required; there is deliberately no default. The only values are
@@ -1925,20 +1978,14 @@ ordinary plotting calls inside an existing axis.
 
 The following setup is executed inline and shared by this section's examples.
 It deliberately uses the sourced library rather than adding thermodynamic data.
-\begin{verbatim}
+\begin{codeexample}[setup code]
 \pgfplotsset{pourbaix/declare={name=StyledFe,element=Fe,
   species={Fe(s),Fe^2+,Fe^3+,Fe(OH)2(s),Fe(OH)3(s)},
   temperature=298.15,concentration=.01,
   boundary convention=equal concentrations,constants={}},
   pourbaix/check=StyledFe,pourbaix/calculate=StyledFe,
   pourbaix/pH min=0,pourbaix/pH max=14,pourbaix/finalize=StyledFe}
-\end{verbatim}
-\pgfplotsset{pourbaix/declare={name=StyledFe,element=Fe,
-  species={Fe(s),Fe^2+,Fe^3+,Fe(OH)2(s),Fe(OH)3(s)},
-  temperature=298.15,concentration=.01,
-  boundary convention=equal concentrations,constants={}},
-  pourbaix/check=StyledFe,pourbaix/calculate=StyledFe,
-  pourbaix/pH min=0,pourbaix/pH max=14,pourbaix/finalize=StyledFe}
+\end{codeexample}
 
 \begin{codeexample}[width=8cm]
 \pgfplotspourbaix[
@@ -1956,7 +2003,9 @@ letters identify domains; lowercase letters and numbers still identify boundarie
 All following plot keys belong to \texttt{/pgfplots/pourbaix/plot/} and are local
 to a plotting call when supplied in its optional argument.
 \begin{key}{/pgfplots/pourbaix/plot/domain coloring=\meta{mode} (initially adjacent)}
-The required value is \texttt{adjacent}, \texttt{patterns}, \texttt{phase}, or \texttt{none}.
+The required value is \texttt{adjacent}, \texttt{patterns}, \texttt{behavior},
+\texttt{phase}, or \texttt{none}. The behavior mode is described in
+Section~\ref{sec:behavior-fills}.
 The first uses a deterministic saturation-degree graph coloring: each retained
 species is a vertex and each retained chemical pair an edge. Ties use degree,
 then original species order. Every adjacent pair receives different palette
@@ -1967,6 +2016,90 @@ aqueous base styles. \texttt{none} omits stable-domain fills. The existing
 \texttt{domain fills=false} also disables them, regardless of this mode; bare
 \texttt{domain fills} means true. Diagnostic bands have their own switch.
 \end{key}
+\subsection{Fills by corrosion behavior}
+\label{sec:behavior-fills}
+This opt-in presentation applies only to retained element-diagram fills. It does
+not change species, constants, equations, finalization, labels or snapshot handles.
+Removed-domain bands keep their diagnostic styles; the water overlay is independent.
+The mode assumes that the selected element is a metal. It does not infer whether
+an arbitrary element is metallic from its chemical symbol.
+
+\begin{center}
+\begin{tabular}{lp{.65\linewidth}}
+Category & Automatic rule\\\hline
+\texttt{immunity} & Solid containing only the selected element, with oxidation number zero.\\
+\texttt{corrosion} & Charged aqueous species, including anionic hydroxide complexes.\\
+\texttt{passivation} & Other solids containing the selected element.\\
+\texttt{unclassified} & Neutral aqueous species and any remaining unsupported phase.\\
+\end{tabular}
+\end{center}
+The term passivation denotes a possible interpretation of a solid existence
+region, not a prediction of protective-film formation. Dissolved neutral
+complexes are deliberately not assigned to this category automatically.
+
+\begin{key}{/pgfplots/pourbaix/plot/domain palette=behavior}
+Selects \texttt{domain coloring=behavior}, opacity distinctions and the default
+category styles: \texttt{fill=blue!35} for immunity, \texttt{fill=orange!50} for
+corrosion, \texttt{fill=green!40} for passivation and \texttt{fill=gray!40} for
+unclassified species. The named palette resets these four styles; place custom
+category settings after it. Setting only \texttt{domain coloring=behavior}
+preserves existing category settings. No behavior mode is enabled by default.
+\end{key}
+\begin{key}{/pgfplots/pourbaix/plot/domain palette=behavior monochrome}
+Selects behavior coloring with pattern distinctions and white category fills.
+Black patterns are assigned by retained-species adjacency, using the existing
+\texttt{domain patterns} list. There is no fixed pattern identifying a category:
+the species labels and their classification supply that interpretation.
+Use category styles with \texttt{fill=none} for transparent pattern backgrounds.
+\end{key}
+\begin{key}{/pgfplots/pourbaix/plot/behavior/\meta{category}=\meta{options}}
+The required category is \texttt{immunity}, \texttt{corrosion},
+\texttt{passivation} or \texttt{unclassified}. The required option list accepts
+one field, \texttt{style}, containing ordinary TikZ/PGFPlots options.
+The category's \texttt{style} child key can also be set directly.
+Styles stay TeX tokens; they never become Lua source. Values are scoped by TeX
+grouping and captured into ordinary deferred \cs{addplot} commands.
+For reusable settings use, for example:
+\begin{codeexample}[width=0pt]
+\pgfpourbaixset{
+ plot/behavior/corrosion={
+  style={fill=orange!40}}}
+\end{codeexample}
+\end{key}
+\begin{key}{/pgfplots/pourbaix/plot/behavior distinction=\meta{mode} (initially opacity)}
+The required value is \texttt{opacity} or \texttt{patterns}. Opacity preserves
+category-specified colors and patterns, varying their opacity; pattern mode
+assigns a pattern and black pattern ink after the category style. Thus a custom
+category pattern is honored in opacity mode and replaced in pattern mode.
+Neither setting affects other domain-coloring modes.
+\end{key}
+\begin{key}{/pgfplots/pourbaix/plot/behavior opacities=\meta{list}}
+A required comma-separated list of distinct finite, dimensionless numbers in
+$(0,1]$, initially \texttt{0.35,0.5,0.65,0.8,1}. It is used only for behavior
+coloring with opacity distinctions. The same deterministic coloring of the
+complete retained adjacency graph used by other palettes assigns these slots;
+zooming does not reassign them. Empty, repeated, out-of-range or insufficient
+lists cause an error before plotting. In pattern mode the existing validation
+and exhaustion rules for \texttt{domain patterns} apply instead.
+\end{key}
+\begin{key}{/pgfplots/pourbaix/domain/behavior=\meta{category} (initially auto)}
+Used inside \texttt{domain/\meta{species}=\{...\}} or the compatible domain record.
+The required value is \texttt{auto} or one of the four categories above. An explicit
+assignment overrides only the presentation classification, not the chemical
+properties. Unknown categories or species are errors. For example,
+\verb|domain/Fe(OH)2(s)={behavior=unclassified,style={fill=gray!50}}|.
+The existing label, label-position and node-style fields remain available.
+\end{key}
+
+For behavior fills, the effective order is the phase base, common
+\texttt{domain style}, category style, automatic distinction, and finally
+species-specific styles. Explicit species overrides can deliberately defeat
+adjacency distinctions. Automatic distinction guarantees different slots, not
+perceptual separation under arbitrary transparency, background or user styles.
+Use pattern mode for monochrome printing; hue differences alone are insufficient.
+Purely transparent or invisible user fills cannot provide a visible distinction.
+\texttt{domain fills=false} still suppresses all retained fills.
+
 \begin{key}{/pgfplots/pourbaix/plot/domain colors=\meta{color list}}
 A required comma-separated list of ordinary TikZ color expressions, initially
 \texttt{blue!15}, \texttt{orange!20}, \texttt{green!15}, \texttt{violet!15},
@@ -2722,12 +2855,18 @@ with diagnostic overlays, thermodynamic inputs and recovered constants, and all
 provisional boundary equations. It does not perform hidden checks or calculations.
 Prepare, check, calculate and finalize the diagram first.
 
-\begin{verbatim}
+\begin{codeexample}[setup code]
+\begingroup
+\pgfpourbaixset{pH min=0,pH max=14,
+ build={name=ReportFe,element=Fe,temperature=298.15,concentration=.01,
+  species={Fe(s),Fe^2+,Fe^3+,Fe(OH)2(s),Fe(OH)3(s)},
+  boundary convention=equal element concentrations,constants={}}}
 \pgfplotspourbaixreport[
   axis options={xmin=0,xmax=14,ymin=-1.5,ymax=1.5},
   plot options={removed boundary style={red,dashed}}
-]{Fe1E-2}
-\end{verbatim}
+]{ReportFe}
+\endgroup
+\end{codeexample}
 The command is used in ordinary document flow, outside an axis or picture. Its
 syntax is identical in all three supported formats. It uses ordinary TikZ pictures
 and PGFPlots axes; it does not require a LaTeX table package. Each card and picture
@@ -2791,14 +2930,21 @@ species, map, plot and node styles continue to apply. There is no automatic
 layout or label-collision solver. Numerical display uses PGF's number printer
 with precision~5; all calculations and exported coefficients retain full precision.
 
-\begin{verbatim}
+\begin{codeexample}[setup code]
+\begingroup
+\pgfpourbaixset{pH min=0,pH max=14,
+ build={name=ReportFe,element=Fe,temperature=298.15,concentration=.01,
+  species={Fe(s),Fe^2+,Fe^3+,Fe(OH)2(s),Fe(OH)3(s)},
+  boundary convention=equal element concentrations,constants={}}}
+\let\saved\pgfplotslastpourbaix
 \tikzset{pourbaix/report card/.append style={fill=green!3}}
 \pgfplotspourbaixreport[
   handle/.expanded=\saved,
   sections={header,inputs,constants,boundaries},
   text width=10cm
 ]{}
-\end{verbatim}
+\endgroup
+\end{codeexample}
 This numerical-only report needs no axis options. The full report itself uses
 \cs{foreach} to traverse sections and data cards. A document can also use
 \cs{foreach} to declare and report several independent systems; see Section~\ref{sec:report-examples}.
@@ -3933,43 +4079,14 @@ Section~\ref{sec:gallery}.
 The catalogue combines sources with different standard-state conventions;
 a versioned source alone does not establish thermodynamic consistency.
 
-\begin{verbatim}
-\tikzset{
-  pourbaix/report Zn/.style={
-    pourbaix/species 4 label/.style={xshift=-8pt}},
-  pourbaix/report Cu/.style={
-    pourbaix/species 2 label/.style={anchor=east}}}
-\foreach \Element/\Species/\pHmax/\Emin/\Emax in {
- Fe/{Fe(s),Fe^2+,Fe^3+,Fe(OH)2(s),Fe(OH)3(s)}/14/-1.2/1.2,
- Cu/{Cu(s),Cu^+,Cu^2+}/14/-.2/.8,
- Zn/{Zn(s),Zn^2+,Zn(OH)2(s),Zn(OH)4^2-}/16/-1.8/.5,
- Cr/{Cr(s),Cr^2+,Cr^3+,Cr2O7^2-}/14/-1.5/1.5}{
-  \tikzset{pourbaix/report \Element/.try}
-  \pgfplotsset{pourbaix/declare={name=TeachingReport,
-    element/.expanded=\Element,species/.expanded=\Species,
-    temperature=298.15,concentration=.01,
-    boundary convention=equal element concentrations,
-    constants={}},
-    pourbaix/check=TeachingReport,
-    pourbaix/calculate=TeachingReport,
-    pourbaix/pH min=0,pourbaix/pH max/.expanded=\pHmax,
-    pourbaix/finalize=TeachingReport}
-  \pgfplotspourbaixreport[
-    axis options={xmin=0,xmax/.expanded=\pHmax,
-      ymin/.expanded=\Emin,ymax/.expanded=\Emax},
-    plot options={boundary label style={pos=.25},
-      final domain label style={font=\small},
-      removed domain label style={anchor=south east,font=\small}}
-  ]{TeachingReport}
-}
-\end{verbatim}
-The executions below add a page break and a heading before each element; the
-scientific data and report options are identical to the displayed source.
+
+The report source includes page breaks and headings for each element.
 The zinc window extends to pH~16 to show the amphoteric branch; the dilute
 activity model remains a formal teaching approximation at such high alkalinity.
 Element-specific TikZ styles adjust two labels without altering their data;
 \texttt{/.try} makes the absent styles for other elements harmless.
 
+\begin{codeexample}[setup code]
 \tikzset{
   pourbaix/report Zn/.style={
     pourbaix/species 4 label/.style={xshift=-8pt}},
@@ -3997,6 +4114,7 @@ Element-specific TikZ styles adjust two labels without altering their data;
       removed domain label style={anchor=south east,font=\small}}
   ]{TeachingReport}
 }
+\end{codeexample}
 \clearpage
 
 \clearpage\part{Thermodynamic data and provenance}\label{part:data}
@@ -4080,7 +4198,8 @@ thermodynamic dataset. Users requiring a homogeneous standard-state convention
 must supply a compatible dataset and disable fallback. No concentration-to-activity
 conversion is inferred by checking numerical sufficiency.
 
-The scientific audit is documented in \texttt{doc/scientific-audit.md}.
+The source notes and tables in this part document the checked data and
+remaining scientific qualifications.
 Independent reconstruction confirms the reactions and logarithmic conversions
 of all 59 selected USGS database records against the pinned files. The catalogue
 cycle check identifies the copper discrepancy described above, treating distinct
@@ -4639,22 +4758,30 @@ scoping and atomic failure under all three formats. Catalogue tests balance
 every imported reaction, exercise every entry against its endpoint pair, verify
 source metadata and defensive copies, and check default phases, overrides,
 user-data precedence, aqueous intermediates and temperature rejection.
-An optional \texttt{tests/lua/source-audit.lua} script independently reconstructs
+An independent source check reconstructs
 59 USGS reactions and logarithmic constants from the three pinned upstream files
 without network access. With only \texttt{phreeqc.dat}, it checks the original
 50 entries. The ordinary suite also checks phase-aware catalogue cycles and
 the distinct meanings of source potentials and source $\log K$ values.
 
-\texttt{make doc} compiles this manual, generates its index and recompiles it.
-\texttt{make check} runs both suites. All artifacts remain in \texttt{build/}.
-\texttt{make dist} runs these checks and builds a local CTAN source archive,
-checksums and draft submission metadata in \texttt{build/dist/}; it does not
-publish anything. \texttt{make manifest} refreshes the distribution file list
-after source files are added or removed. \texttt{make clean} removes only the
-generated build tree. Release metadata and the local preparation procedure are
-documented in \texttt{release.json} and \texttt{doc/releasing.md}.
-The examples above are part of this source and execute within the manual;
-no example is externalized and no precompiled example PDF is included.
+\subsection{Rebuilding the manual and tested configuration}
+Install the runtime first. From a writable directory, run LuaLaTeX on
+\path{luapourbaix-manual.tex} twice, run MakeIndex on
+\path{luapourbaix-manual.idx}, then rerun LuaLaTeX and MakeIndex until page
+references and the index settle. The manual uses the PGF distribution's own
+\path{pgfmanual.sty} and \path{pgfmanual-en-macros.tex}; use the matching PGF
+installation. All figures execute from the inline source shown to the reader.
+Shared setup and multi-page reports use PGF's \texttt{setup code} facility.
+The loading snippets for the three formats are checked in separate consumer
+documents, since one document cannot run three different TeX formats.
+No example is externalized and no precompiled example PDF is included.
+
+The tested configuration is macOS with TeX Live 2026: LuaTeX and LuaHBTeX
+1.24.0, ConTeXt MkIV 2026.09.10, PGF 3.1.12 and PGFPlots 1.18.3.
+The loader rejects an incomplete installation even when a missing Lua module
+can be found elsewhere, so incompatible installations cannot silently be mixed.
+Other engines and platforms have not been qualified. Format compatibility does
+not certify the reference quality of the scientific data.
 
 \clearpage\printindex
 \end{document}

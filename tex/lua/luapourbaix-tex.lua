@@ -4,16 +4,17 @@
 -- Maintained by Christophe Jorssen. See COPYING.md, LICENSE and MANIFEST.md.
 
 -- Engine-specific bridge; this is the only module allowed to access TeX.
+-- The TeX bootstrap passes its selected installation's Lua directory as data.
+-- LuaTeX can disable debug.getinfo without shell escape; do not depend on it.
+local directory = ...
+assert(type(directory) == "string" and directory:sub(-1) == "/",
+  "luapourbaix: bridge requires an explicit installation directory")
 local function find_file(name)
-  if resolvers and resolvers.findfile then
-    local path = resolvers.findfile(name)
-    if path and path ~= "" then
-      return path
-    end
-  end
-  if kpse and kpse.find_file then
-    return kpse.find_file(name, "tex")
-  end
+  local path = directory .. name
+  local file = io.open(path, "rb")
+  assert(file, "luapourbaix: missing component in selected installation: " .. path)
+  file:close()
+  return path
 end
 
 local path = assert(find_file("luapourbaix.lua"),
@@ -455,6 +456,7 @@ function M.plot_diagram()
     end
     local options = {xmin=key("xmin"),xmax=key("xmax"),ymin=key("ymin"),ymax=key("ymax")}
     options.coloring=key("coloring")
+    options.behavior_distinction=key("behaviordistinction")
     options.palette=key("palette")
     options.label_mode=key("labelmode")
     options.label_placement=key("labelplacement")
@@ -465,7 +467,7 @@ function M.plot_diagram()
     local diagram=registry.get(handle)
     local function species(id) return core.parse_species(id,diagram.element).id end
     for i=1,tonumber(read("domaincount")) do
-      options.domains[i]={species=species(read("domainspecies"..i)),at=read("domainat"..i)}
+      options.domains[i]={species=species(read("domainspecies"..i)),at=read("domainat"..i),behavior=read("domainbehavior"..i)}
     end
     if options.letter_species~="" then
       local ids={}

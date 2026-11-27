@@ -28,9 +28,8 @@ silently converted to molarity. No temperature extrapolation is implemented.
 
 Only selected numerical facts and original catalogue code are distributed.
 Downloaded upstream files used for verification are not part of the package.
-The [scientific audit](scientific-audit.md) records the checked coverage, the
-copper cycle discrepancy, and remaining reference-quality limitations. The optional
-`tests/lua/source-audit.lua` reconstructs 59 source reactions and log K values
+The [manual](luapourbaix-manual.pdf) records the checked coverage, the
+copper cycle discrepancy, and remaining reference-quality limitations. An independent source check reconstructs 59 source reactions and log K values
 from separately obtained pinned copies of `phreeqc.dat`, `minteq.v4.dat` and
 `llnl.dat`; with only the first file it checks the original 50 entries.
 The ordinary tests also audit phase-aware cycles and distinguish source E0
